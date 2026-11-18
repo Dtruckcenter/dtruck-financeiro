@@ -1,0 +1,10 @@
+{
+  "name": "dtruck-financeiro",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev public --d1 DB=dtruck-financeiro --binding DEV_EMAIL=dev@local ADMIN_EMAILS=dev@local --port 8788"
+  },
+  "devDependencies": {
+    "wrangler": "4.45.0"
+  }
+}
