@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // O nome precisa ser igual ao nome do Worker criado no painel da Cloudflare.
+  "name": "dtruck-financeiro",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dtruck-financeiro",
+      // Copie o "Database ID" em Storage & Databases > D1 > dtruck-financeiro.
+      "database_id": "COLE_AQUI_O_DATABASE_ID"
+    }
+  ],
+  // Mantém as variáveis (ADMIN_EMAILS, ACCESS_AUD...) configuradas no painel a cada deploy.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

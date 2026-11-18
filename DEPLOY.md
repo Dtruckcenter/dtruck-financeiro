@@ -1,51 +1,44 @@
-# Como colocar o Dtruck Financeiro no ar (Cloudflare)
+# Como colocar o Dtruck Financeiro no ar (Cloudflare Workers)
 
-Tempo estimado: 30 a 40 minutos. Você não precisa programar nada, só clicar e copiar valores.
-**Nunca cole senhas ou chaves no chat.** Tudo abaixo é feito no painel da Cloudflare.
+Você não precisa programar nada, só clicar e copiar valores.
+**Nunca cole senhas, tokens ou chaves no chat.** O "Database ID" e o "AUD Tag" não são senhas: são só identificadores.
 
-O sistema tem 3 peças na Cloudflare:
+O sistema usa 3 serviços da Cloudflare:
 
 | Peça | Serviço | Para quê |
 |---|---|---|
-| Site | **Pages** | Publica as telas a partir do GitHub |
+| Site e API | **Worker** (ligado ao GitHub) | Publica as telas e a API a cada atualização do repositório |
 | Banco | **D1** | Guarda lançamentos, clientes, peças e notas |
 | Login | **Zero Trust → Access** | Só entra quem estiver na lista de e-mails |
 
+Os nomes dos menus mudam se o painel estiver em português, por exemplo *Settings* = *Configurações* e *Bindings* = *Vinculações*. Se não achar um menu, use a busca do painel (`Ctrl + K`).
+
 ---
 
-## 1. Criar o banco de dados (D1)
+## 1. Banco de dados (D1)
 
-1. Entre em **dash.cloudflare.com**.
-2. Menu lateral: **Storage & Databases → D1 SQL Database → Create**.
-3. Nome: `dtruck-financeiro` → **Create**.
+1. Abra **Storage & Databases → D1 SQL Database** ou use o link https://dash.cloudflare.com/?to=/:account/workers/d1
+2. **Create**, com o nome `dtruck-financeiro`.
+3. Abra o banco e copie o **Database ID**, um código parecido com `a1b2c3d4-...`.
+4. Coloque esse código no arquivo `wrangler.jsonc` do repositório, no lugar de `COLE_AQUI_O_DATABASE_ID`. Também pode mandar o código no chat do Claude para ele fazer isso.
 
 As tabelas são criadas sozinhas no primeiro acesso.
 
-## 2. Publicar o site (Pages) ligado ao GitHub
+## 2. Worker ligado ao GitHub
 
-1. Menu lateral: **Workers & Pages → Create**.
-2. Escolha a aba/opção **Pages** → **Connect to Git** (Importar um repositório existente).
-3. Autorize o GitHub e escolha o repositório `dtruck-financeiro`.
-4. Configuração do build:
-   - **Framework preset:** `None`
-   - **Build command:** deixe vazio
-   - **Build output directory:** `public`
-5. **Save and Deploy**.
+O Worker `dtruck-financeiro` já foi criado e ligado ao repositório. Confira em **Worker → Settings → Build**:
 
-Ao final aparece um endereço `https://dtruck-financeiro.pages.dev`. Ainda vai mostrar "Não autenticado". Isso é esperado até o passo 5.
+- **Build command:** vazio
+- **Deploy command:** `npx wrangler deploy`
+- **Root directory:** `/`
 
-## 3. Ligar o banco ao site
+O nome do Worker precisa ser **`dtruck-financeiro`**, igual ao campo `name` do `wrangler.jsonc`.
 
-No projeto do Pages: **Settings → Bindings → Add → D1 database**
+A cada alteração no GitHub, a Cloudflare publica sozinha. O endereço fica parecido com `https://dtruck-financeiro.SEU-SUBDOMINIO.workers.dev`. Ele vai mostrar "Não autenticado" até o passo 4 ficar pronto, e isso é esperado.
 
-- **Variable name:** `DB`
-- **D1 database:** `dtruck-financeiro`
+## 3. Variáveis
 
-Salve.
-
-## 4. Definir quem é administrador
-
-No projeto do Pages: **Settings → Variables and Secrets → Add** (ambiente **Production**):
+Em **Worker → Settings → Variables and Secrets → Add**, do tipo *Text*:
 
 | Nome | Valor | Obrigatório |
 |---|---|---|
@@ -54,62 +47,61 @@ No projeto do Pages: **Settings → Variables and Secrets → Add** (ambiente **
 
 Perfis:
 - **Administrador:** faz tudo, inclusive mudar saldo inicial e CNPJ.
-- **Operador** (qualquer pessoa liberada no login que não esteja nas listas acima): lança, edita, importa notas e cadastra.
+- **Operador:** qualquer pessoa liberada no login que não esteja nas listas acima. Lança, edita, importa notas e cadastra.
 - **Só leitura:** vê tudo e não altera nada.
 
-## 5. Ativar o login da equipe (Cloudflare Access)
+## 4. Login da equipe (Cloudflare Access)
 
-1. Menu lateral: **Zero Trust**. Na primeira vez:
-   - escolha um **nome de equipe** (ex.: `dtruck`). Isso cria o endereço `dtruck.cloudflareaccess.com`;
-   - escolha o plano **Free** (até 50 usuários). Pode pedir cartão, mas não cobra.
-2. **Access → Applications → Add an application → Self-hosted**.
+1. Abra **Zero Trust**. Na primeira vez, escolha:
+   - um **nome de equipe**, por exemplo `dtruck`, que gera o endereço `dtruck.cloudflareaccess.com`;
+   - o plano **Free**, que vale para até 50 usuários. Pode pedir cartão, mas não cobra.
+2. Vá em **Access → Applications → Add an application → Self-hosted**.
 3. **Application name:** `Dtruck Financeiro`.
-4. **Domínios**, adicione os dois:
-   - `dtruck-financeiro.pages.dev`
-   - o seu domínio, ex. `financeiro.seudominio.com.br` (depois do passo 6, se ainda não existir)
-5. **Policy:** nome `Equipe Dtruck`, ação **Allow**, regra **Include → Emails**. Coloque o e-mail de cada pessoa da equipe.
-6. **Login methods:** deixe **One-time PIN** marcado (a pessoa recebe um código no e-mail). Se quiserem, adicione Google.
-7. Salve. Abra a aplicação criada e copie o **Application Audience (AUD) Tag**.
+4. **Domínios:** coloque o endereço `.workers.dev` do passo 2 e, depois do passo 5, também o domínio da Dtruck.
+5. **Policy:**
+   - nome `Equipe Dtruck`;
+   - ação **Allow**;
+   - regra **Include → Emails**, com o e-mail de cada pessoa da equipe.
+6. **Login:** deixe **One-time PIN** ligado. A pessoa recebe um código por e-mail.
+7. Salve, abra a aplicação e copie o **Application Audience (AUD) Tag**.
 
-Volte ao projeto do Pages → **Settings → Variables and Secrets** e adicione:
+Volte em **Worker → Settings → Variables and Secrets** e adicione:
 
 | Nome | Valor |
 |---|---|
-| `ACCESS_TEAM_DOMAIN` | `dtruck.cloudflareaccess.com` (o seu nome de equipe) |
+| `ACCESS_TEAM_DOMAIN` | `dtruck.cloudflareaccess.com`, com o seu nome de equipe |
 | `ACCESS_AUD` | o AUD Tag copiado |
 
-Depois: **Deployments → … no último deploy → Retry deployment**, para aplicar as variáveis.
+## 5. Domínio da Dtruck
 
-## 6. Usar o domínio da Dtruck
+Para usar um domínio próprio num Worker, o **DNS do domínio precisa estar na Cloudflare**:
 
-No projeto do Pages: **Custom domains → Set up a custom domain** → `financeiro.seudominio.com.br`.
+1. No painel, clique em **Add a domain** e digite o domínio.
+2. A Cloudflare mostra dois servidores DNS, com nomes parecidos com `xxx.ns.cloudflare.com`.
+3. No **Registro.br**, ou onde o domínio estiver registrado, troque os servidores DNS por esses dois.
+4. Espere a Cloudflare mostrar o domínio como **Active**. Pode levar algumas horas.
 
-- **Se o domínio já está na Cloudflare:** ela cria o registro sozinha.
-- **Se o DNS continua no Registro.br ou em outro lugar:** crie lá um registro **CNAME**:
-  - nome `financeiro`
-  - valor `dtruck-financeiro.pages.dev`
+A Cloudflare copia os registros de DNS que já existem, então o e-mail e o site atuais continuam funcionando. Antes de trocar, confira na lista se estão lá os registros do e-mail (MX) e do site.
 
-Depois confira se esse domínio está na lista de domínios da aplicação do Access (passo 5.4).
+Depois que o domínio estiver ativo:
+1. Em **Worker → Settings → Domains & Routes → Add → Custom domain**, coloque `financeiro.seudominio.com.br`.
+2. Inclua esse mesmo domínio na aplicação do Access, no passo 4.4.
 
-## 7. Testar
+## 6. Testar
 
-1. Abra `https://financeiro.seudominio.com.br`.
-2. Digite seu e-mail, receba o código e entre.
-3. No canto inferior do menu aparece "Conectado como …" com o seu perfil.
+1. Abra o endereço.
+2. Digite seu e-mail e o código que chegar.
+3. No rodapé do menu deve aparecer "Conectado como …" com o seu perfil.
 
-Para incluir ou tirar alguém da equipe: **Zero Trust → Access → Applications → Dtruck Financeiro → Policies → Equipe Dtruck**.
+Para incluir ou tirar alguém da equipe, vá em **Zero Trust → Access → Applications → Dtruck Financeiro → Policies**.
 
 ---
 
 ## Segurança e backup
 
-- **Acesso:** o servidor confere a assinatura do token do Cloudflare Access em toda requisição. Sem login válido, nenhum dado sai do banco, mesmo pelo endereço `.pages.dev`.
-- **Registro de alterações:** cada criação, edição ou exclusão fica gravada na tabela `audit` com o e-mail de quem fez e o horário.
-- **Backup:** o D1 guarda o histórico do banco (**Time Travel**) e permite voltar a um ponto no tempo. São 7 dias no plano gratuito e 30 dias no plano Workers Paid (US$ 5/mês).
-
-## Atualizações
-
-Toda alteração enviada ao GitHub (branch `main`) é publicada automaticamente pela Cloudflare em cerca de 1 minuto.
+- **Login conferido a cada pedido:** o servidor confere a assinatura do login do Cloudflare Access em toda requisição. Sem login válido, nenhum dado sai do banco.
+- **Histórico de alterações:** cada alteração fica registrada na tabela `audit`, com o e-mail de quem fez e o horário.
+- **Backup:** o D1 tem **Time Travel**, que permite voltar o banco a um ponto no tempo. Guarda 7 dias no plano grátis e 30 dias no plano pago (US$ 5/mês).
 
 ## Rodar no computador (desenvolvimento)
 
@@ -121,4 +113,4 @@ npm install
 npm run dev
 ```
 
-Abre em `http://localhost:8788` com um banco local de teste e o usuário `dev@local` como administrador.
+O sistema abre em `http://localhost:8788`, com um banco local de teste e o usuário `dev@local` como administrador.

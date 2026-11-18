@@ -1,7 +1,7 @@
-// API da Dtruck Financeiro — Cloudflare Pages Functions + D1.
+// API da Dtruck Financeiro — Cloudflare Workers + D1.
 // Todas as rotas exigem login pelo Cloudflare Access (o token JWT é verificado aqui).
 //
-// Variáveis de ambiente (Pages > Settings > Variables and Secrets):
+// Variáveis de ambiente (Worker > Settings > Variables and Secrets):
 //   ACCESS_TEAM_DOMAIN  ex.: dtruck.cloudflareaccess.com
 //   ACCESS_AUD          "Application Audience (AUD) Tag" da aplicação no Access
 //   ADMIN_EMAILS        e-mails separados por vírgula com perfil administrador

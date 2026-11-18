@@ -5,7 +5,8 @@ Sistema de gestão financeira da Dtruck Center: entradas e saídas, importação
 - `public/`: telas (HTML/JS, sem etapa de build)
   - `index.html`: o sistema
   - `api-client.js`: sincroniza os dados com a API
-- `functions/api/[[path]].js`: API (Cloudflare Pages Functions) com banco D1 e login pelo Cloudflare Access
+- `src/index.js`: Worker (entrada); `src/api.js`: API com banco D1 e login pelo Cloudflare Access
+- `wrangler.jsonc`: configuração do Worker (assets, D1)
 - `DEPLOY.md`: passo a passo para colocar no ar
 
 ## API
