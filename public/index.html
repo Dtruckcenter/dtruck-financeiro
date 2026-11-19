@@ -151,6 +151,20 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+.auth{position:fixed;inset:0;background:var(--rail);display:flex;align-items:center;justify-content:center;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:70;overflow-y:auto}
+.auth-wrap{display:flex;flex-direction:column;align-items:center;width:100%;max-width:390px;margin:auto}
+.auth-wrap>img{width:170px;height:auto;margin-bottom:22px}
+.auth-card{background:var(--surface);border-radius:12px;padding:26px 24px;width:100%;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.auth-card h2{font-size:20px;margin:0}
+.auth-card p{margin:0;font-size:14px;color:var(--muted)}
+.auth-card .f{grid-column:auto}
+.auth-card .btn.pri{justify-content:center;padding:11px 14px;font-size:15px}
+.auth-err{background:var(--neg-soft);color:var(--neg);border-radius:6px;padding:8px 10px;font-size:14px}
+.auth-foot{color:var(--rail-mute);font-size:12px;margin-top:16px;text-align:center}
+.rail-foot .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.rail-foot .acts button{font:600 12px var(--f-body);background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--rail-ink);border-radius:5px;padding:4px 9px;cursor:pointer}
+.rail-foot .acts button:hover{border-color:var(--accent);color:#fff}
+.pwd-show{font-family:var(--f-mono);font-size:18px;font-weight:700;background:var(--surface-2);border:1px dashed var(--line);border-radius:6px;padding:10px;text-align:center;letter-spacing:.05em;user-select:all}
 @media (max-width:1100px){.two,.three{grid-template-columns:1fr}}
 @media (max-width:820px){
   .app{grid-template-columns:1fr}
@@ -186,12 +200,14 @@ tr.off td{opacity:.55}
       <span class="grp">Cadastros</span>
       <a href="#clientes" data-v="clientes">Clientes</a>
       <a href="#pecas" data-v="pecas">Peças</a>
+      <a href="#usuarios" data-v="usuarios" id="nav-users" hidden>Usuários</a>
     </nav>
     <div class="rail-foot" id="railfoot"></div>
   </aside>
   <main id="main"><div class="loading">Carregando dados da Dtruck Center…</div></main>
 </div>
 <div id="modal-root"></div>
+<div id="auth-root"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="/api-client.js"></script>
@@ -302,7 +318,7 @@ function lineChart(points){ // [{lbl,v,proj}]
 }
 
 // ---------- Views ----------
-const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas};
+const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios};
 function render(){
   document.querySelectorAll('#menu a').forEach(a=>a.classList.toggle('on',a.dataset.v===UI.view));
   const m=$('#main');
@@ -861,6 +877,99 @@ async function runImport(){
   render();
 }
 
+// ---------- Login, senha e usuários ----------
+function genPass(){const a='abcdefghjkmnpqrstuvwxyz',A='ABCDEFGHJKLMNPQRSTUVWXYZ',d='23456789';const r=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;
+  const pick=s=>s[r(s.length)];let p=pick(A)+pick(a)+pick(a)+pick(a)+'-'+pick(d)+pick(d)+pick(d)+pick(d)+'-'+pick(A)+pick(a)+pick(a)+pick(a);return p}
+function showAuth(mode){
+  const logo=document.querySelector('.brand .logo').src;
+  const T={
+    login:{h:'Entrar',p:'Use o e-mail e a senha cadastrados pelo administrador.',f:`<div class="f"><label for="a-email">E-mail</label><input id="a-email" name="email" type="email" autocomplete="username" required></div>
+      <div class="f"><label for="a-pass">Senha</label><input id="a-pass" name="password" type="password" autocomplete="current-password" required></div>`,b:'Entrar',
+      foot:'Esqueceu a senha? Peça ao administrador para redefinir.'},
+    setup:{h:'Primeiro acesso',p:'Crie a conta do administrador do sistema. Use o e-mail autorizado da Dtruck.',f:`<div class="f"><label for="a-name">Seu nome</label><input id="a-name" name="name" autocomplete="name" required></div>
+      <div class="f"><label for="a-email">E-mail</label><input id="a-email" name="email" type="email" autocomplete="username" required></div>
+      <div class="f"><label for="a-pass">Crie uma senha</label><input id="a-pass" name="password" type="password" autocomplete="new-password" required></div>
+      <div class="f"><label for="a-pass2">Repita a senha</label><input id="a-pass2" name="password2" type="password" autocomplete="new-password" required></div>
+      <p>Mínimo de 8 caracteres, com letras e números.</p>`,b:'Criar conta e entrar',foot:''},
+    change:{h:'Defina sua senha',p:'Sua senha atual é provisória. Crie uma senha pessoal para continuar.',f:`<div class="f"><label for="a-cur">Senha provisória</label><input id="a-cur" name="current" type="password" autocomplete="current-password" required></div>
+      <div class="f"><label for="a-pass">Nova senha</label><input id="a-pass" name="password" type="password" autocomplete="new-password" required></div>
+      <div class="f"><label for="a-pass2">Repita a nova senha</label><input id="a-pass2" name="password2" type="password" autocomplete="new-password" required></div>
+      <p>Mínimo de 8 caracteres, com letras e números.</p>`,b:'Salvar e entrar',foot:'<a href="#" id="a-out" style="color:inherit">Sair</a>'}
+  }[mode];
+  $('#auth-root').innerHTML=`<div class="auth"><div class="auth-wrap"><img src="${logo}" alt="Dtruck Center"><form class="auth-card" id="auth-form" novalidate><h2>${T.h}</h2><p>${T.p}</p><div class="auth-err" id="a-err" hidden></div>${T.f}<button class="btn pri" type="submit">${T.b}</button></form><div class="auth-foot">${T.foot}</div></div></div>`;
+  const out=$('#a-out');if(out)out.onclick=async e=>{e.preventDefault();try{await DtruckAPI.logout()}catch(_){}location.reload()};
+  const err=m=>{const el=$('#a-err');el.textContent=m;el.hidden=false};
+  const f=$('#auth-form');f.querySelector('input').focus();
+  f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));const btn=f.querySelector('[type=submit]');
+    if(d.password2!==undefined&&d.password!==d.password2)return err('As senhas não são iguais.');
+    btn.disabled=true;
+    try{
+      if(mode==='login'){const r=await DtruckAPI.login(d.email,d.password);if(r&&r.mustChange){btn.disabled=false;return showAuth('change')}}
+      else if(mode==='setup')await DtruckAPI.setup(d.email,d.name,d.password);
+      else await DtruckAPI.changePassword(d.current,d.password);
+      location.reload();
+    }catch(x){btn.disabled=false;err(x.message||'Não foi possível entrar. Tente de novo.')}
+  };
+}
+function myPassword(){
+  openModal(`<h2>Alterar minha senha</h2><div class="form"><div class="f w6"><label for="mp-c">Senha atual</label><input id="mp-c" name="current" type="password" autocomplete="current-password"></div>
+    <div class="f w6"><label for="mp-n">Nova senha</label><input id="mp-n" name="password" type="password" autocomplete="new-password"></div>
+    <div class="f w6"><label for="mp-n2">Repita a nova senha</label><input id="mp-n2" name="password2" type="password" autocomplete="new-password"></div>
+    <p class="hint f w6">Mínimo de 8 caracteres, com letras e números. Você continua conectado neste aparelho; os outros aparelhos serão desconectados.</p></div>
+    <div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Salvar nova senha</button></div>`,
+  async d=>{if(d.password!==d.password2){toast('As senhas não são iguais.');return false}
+    try{await DtruckAPI.changePassword(d.current,d.password);toast('Senha alterada');}catch(e){toast(e.message||'Não foi possível alterar a senha.');return false}});
+}
+const ROLE_L={admin:'Administrador',operador:'Operador',leitura:'Só leitura'};
+UI.users=null;
+async function loadUsers(){try{UI.users=(await DtruckAPI.users.list()).users}catch(e){UI.users=[];toast(e.message||'Não foi possível carregar os usuários.')}if(UI.view==='usuarios')render()}
+function vUsuarios(){
+  const me=DtruckAPI.me()||{};
+  if(me.role!=='admin')return '<div class="panel empty">Só administradores gerenciam usuários.</div>';
+  if(!UI.users){loadUsers();return '<div class="loading">Carregando usuários…</div>'}
+  const L=UI.users;
+  return `<div class="head"><div><h1>Usuários</h1><p class="sub">Quem pode entrar no sistema e o que cada pessoa pode fazer.</p></div><div class="tools"><button class="btn pri" data-act="user-new">+ Novo usuário</button></div></div>
+  <div class="tw"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>
+  ${L.map(u=>`<tr class="${u.active?'':'off'}"><td><b>${esc(u.name)||'—'}</b>${u.email===me.email?' <span class="pill info">você</span>':''}</td><td>${esc(u.email)}</td><td>${ROLE_L[u.role]||esc(u.role)}</td>
+    <td>${!u.active?'<span class="pill late">Desativado</span>':u.mustChange?'<span class="pill pend">Senha provisória</span>':'<span class="pill ok">Ativo</span>'}</td>
+    <td>${u.lastLogin?new Date(u.lastLogin).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Nunca entrou'}</td>
+    <td><div class="act"><button class="btn sm ghost" data-act="user-edit" data-id="${esc(u.email)}">Editar</button><button class="btn sm ghost" data-act="user-reset" data-id="${esc(u.email)}">Redefinir senha</button>${u.email!==me.email?`<button class="btn sm ghost danger" data-act="user-del" data-id="${esc(u.email)}">Excluir</button>`:''}</div></td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="panel" style="margin-top:16px"><h2>Perfis</h2><p class="hint" style="margin:0"><b>Administrador:</b> faz tudo, inclusive usuários, saldo inicial e CNPJ. <b>Operador:</b> lança, importa notas e cadastra clientes e peças. <b>Só leitura:</b> consulta tudo, sem alterar.</p></div>`;
+}
+function showTempPass(email,pass){
+  openModal(`<h2>Senha provisória</h2><p>Passe esta senha para <b>${esc(email)}</b>. No primeiro acesso, o sistema vai pedir para a pessoa criar uma senha pessoal.</p><div class="pwd-show" id="tp">${esc(pass)}</div>
+    <p class="hint">Ela não aparece de novo depois que você fechar esta janela.</p><div class="mfoot"><button type="button" class="btn" id="tp-copy">Copiar</button><button type="submit" class="btn pri">Fechar</button></div>`,async()=>{},
+    ()=>{$('#tp-copy').onclick=()=>{navigator.clipboard.writeText(pass).then(()=>toast('Senha copiada'),()=>{const r=document.createRange();r.selectNodeContents($('#tp'));getSelection().removeAllRanges();getSelection().addRange(r)})}});
+}
+function userForm(u){
+  const isNew=!u;u=u||{role:'operador',active:true};
+  const pass=isNew?genPass():'';
+  openModal(`<h2>${isNew?'Novo usuário':'Editar usuário'}</h2><div class="form">
+    <div class="f w6"><label for="u-name">Nome</label><input id="u-name" name="name" value="${esc(u.name)}" required></div>
+    <div class="f w6"><label for="u-email">E-mail</label><input id="u-email" name="email" type="email" value="${esc(u.email)}" ${isNew?'':'disabled'} required></div>
+    <div class="f"><label for="u-role">Perfil</label><select id="u-role" name="role">${Object.entries(ROLE_L).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    ${isNew?`<div class="f"><label for="u-pass">Senha provisória</label><input id="u-pass" name="password" value="${pass}"></div>`:`<div class="f"><label class="check" style="margin-top:22px"><input type="checkbox" name="active" ${u.active?'checked':''}> Acesso ativo</label></div>`}
+  </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">${isNew?'Criar usuário':'Salvar'}</button></div>`,
+  async d=>{try{
+      if(isNew){await DtruckAPI.users.create({name:d.name,email:d.email,role:d.role,password:d.password});UI.users=null;render();setTimeout(()=>showTempPass(d.email,d.password),50)}
+      else{await DtruckAPI.users.update(u.email,{name:d.name,role:d.role,active:!!d.active});toast('Usuário atualizado');UI.users=null;render()}
+    }catch(e){toast(e.message||'Não foi possível salvar.');return false}});
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id;
+  switch(b.dataset.act){
+    case 'logout':(async()=>{try{await DtruckAPI.logout()}catch(_){}location.hash='';location.reload()})();break;
+    case 'my-pass':myPassword();break;
+    case 'user-new':userForm(null);break;
+    case 'user-edit':userForm(UI.users.find(u=>u.email===id));break;
+    case 'user-reset':{const p=genPass();confirmBox('Redefinir senha',`Criar uma senha provisória nova para <b>${esc(id)}</b>? A pessoa será desconectada e terá que criar uma senha pessoal no próximo acesso.`,'Redefinir',async()=>{
+      try{await DtruckAPI.users.update(id,{password:p});UI.users=null;render();setTimeout(()=>showTempPass(id,p),50)}catch(e){toast(e.message||'Não foi possível redefinir.')}});break}
+    case 'user-del':confirmBox('Excluir usuário',`Excluir o acesso de <b>${esc(id)}</b>? Os lançamentos feitos por essa pessoa continuam no sistema.`,'Excluir',async()=>{
+      try{await DtruckAPI.users.remove(id);toast('Usuário excluído');UI.users=null;render()}catch(e){toast(e.message||'Não foi possível excluir.')}});break;
+  }
+});
+
 // ---------- Ações ----------
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id;
@@ -892,7 +1001,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{if(e.target.id==='pm'&&e.target.value){UI.mes=e.target.value;saveUI();render()}});
 
 // ---------- Rotas ----------
-function route(){const h=location.hash.slice(1);UI.view=VIEWS[h]?h:'painel';render();window.scrollTo(0,0)}
+function route(){const h=location.hash.slice(1);UI.view=VIEWS[h]?h:'painel';if(h==='usuarios')UI.users=null;render();window.scrollTo(0,0);if(S.db&&window.DtruckAPI)DtruckAPI.sync().catch(()=>{})}
 window.addEventListener('hashchange',route);
 
 // ---------- Boot ----------
@@ -904,8 +1013,15 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
   UI.view=VIEWS[location.hash.slice(1)]?location.hash.slice(1):'painel';
   document.querySelectorAll('#menu a').forEach(a=>a.classList.toggle('on',a.dataset.v===UI.view));
   let db;
-  try{db=await DtruckAPI.init()}catch(e){S.noDb=e&&e.message?e.message:'Verifique sua conexão.';render();return}
-  const who=DtruckAPI.me();if(who){$('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.email)}</b><br>Perfil: ${({admin:'Administrador',operador:'Operador',leitura:'Só leitura'})[who.role]||esc(who.role)}`}
+  try{db=await DtruckAPI.init()}catch(e){
+    if(e&&e.code==='unauthenticated'){let st={};try{st=await DtruckAPI.setupStatus()}catch(_){}return showAuth(st.needsSetup?'setup':'login')}
+    if(e&&e.code==='must_change')return showAuth('change');
+    S.noDb=e&&e.message?e.message:'Verifique sua conexão.';render();return}
+  const who=DtruckAPI.me();
+  if(who){const R={admin:'Administrador',operador:'Operador',leitura:'Só leitura'};
+    $('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.name||who.email)}</b><br>Perfil: ${R[who.role]||esc(who.role)}<div class="acts"><button type="button" data-act="my-pass">Alterar senha</button><button type="button" data-act="logout">Sair</button></div>`;
+    if(who.role==='admin')$('#nav-users').hidden=false;
+    if(UI.view==='usuarios'&&who.role!=='admin'){location.hash='#painel'}}
   S.db=db;
   const to=setTimeout(()=>{const l=$('#ld');if(l)l.textContent='Os dados estão demorando para chegar. Verifique sua conexão; a página atualiza sozinha quando responder.'},10000);
   const map=d=>({id:d.id,...d.data()});

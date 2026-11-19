@@ -1,18 +1,23 @@
 // API da Dtruck Financeiro — Cloudflare Workers + D1.
-// Todas as rotas exigem login pelo Cloudflare Access (o token JWT é verificado aqui).
+// Login próprio com e-mail e senha (senhas com PBKDF2-SHA256, sessão em cookie HttpOnly).
 //
 // Variáveis de ambiente (Worker > Settings > Variables and Secrets):
-//   ACCESS_TEAM_DOMAIN  ex.: dtruck.cloudflareaccess.com
-//   ACCESS_AUD          "Application Audience (AUD) Tag" da aplicação no Access
-//   ADMIN_EMAILS        e-mails separados por vírgula com perfil administrador
-//   READONLY_EMAILS     e-mails separados por vírgula com perfil só leitura (opcional)
-//   DEV_EMAIL           SÓ para teste local; nunca configure em produção
+//   ADMIN_EMAILS   e-mail(s) autorizados a criar o PRIMEIRO administrador (só vale enquanto não há usuários)
 // Binding D1: DB
 
 const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config']);
 const ADMIN_ONLY = new Set(['config']);
+const ROLES = new Set(['admin', 'operador', 'leitura']);
 const ID_RE = /^[A-Za-z0-9_-]{1,190}$/;
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 const MAX_BODY = 256 * 1024;
+const PBKDF2_ITER = 100000;               // máximo aceito pelo WebCrypto do Workers
+const SESSION_DAYS = 30;
+const MIN_PASS = 8;
+const LOCK_WINDOW_MS = 15 * 60 * 1000;    // janela do limite de tentativas
+const MAX_FAIL_EMAIL = 5;                 // erros por e-mail na janela
+const MAX_FAIL_IP = 20;                   // erros por IP na janela
+const COOKIE = 'dt_session';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS docs (
@@ -23,6 +28,17 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS audit (
      id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, email TEXT, action TEXT NOT NULL,
      col TEXT NOT NULL, doc_id TEXT NOT NULL, data TEXT)`,
+  `CREATE TABLE IF NOT EXISTS users (
+     email TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', role TEXT NOT NULL,
+     pass_hash TEXT NOT NULL, pass_salt TEXT NOT NULL, iterations INTEGER NOT NULL,
+     active INTEGER NOT NULL DEFAULT 1, must_change INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, last_login INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS sessions (
+     token_hash TEXT PRIMARY KEY, email TEXT NOT NULL, created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL, ip TEXT, ua TEXT)`,
+  `CREATE INDEX IF NOT EXISTS sessions_email ON sessions(email)`,
+  `CREATE TABLE IF NOT EXISTS login_fail (
+     k TEXT PRIMARY KEY, count INTEGER NOT NULL, window_start INTEGER NOT NULL)`,
 ];
 let schemaReady = false;
 async function ensureSchema(db) {
@@ -31,49 +47,58 @@ async function ensureSchema(db) {
   schemaReady = true;
 }
 
-// ---------- Autenticação (Cloudflare Access) ----------
-let certCache = { at: 0, keys: [] };
-const b64urlBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
-const b64urlJson = s => JSON.parse(new TextDecoder().decode(b64urlBytes(s)));
-
-async function accessEmail(request, env) {
-  if (env.DEV_EMAIL) return env.DEV_EMAIL;
-  const token = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!token || !env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return null;
-  const [h, p, s] = token.split('.');
-  if (!h || !p || !s) return null;
-  let header, payload;
-  try { header = b64urlJson(h); payload = b64urlJson(p); } catch { return null; }
-  const team = 'https://' + env.ACCESS_TEAM_DOMAIN.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  if (Date.now() - certCache.at > 3600e3 || !certCache.keys.some(k => k.kid === header.kid)) {
-    const r = await fetch(team + '/cdn-cgi/access/certs');
-    if (!r.ok) return null;
-    certCache = { at: Date.now(), keys: (await r.json()).keys || [] };
-  }
-  const jwk = certCache.keys.find(k => k.kid === header.kid);
-  if (!jwk) return null;
-  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
-  const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlBytes(s), new TextEncoder().encode(h + '.' + p));
-  if (!ok) return null;
-  const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!aud.includes(env.ACCESS_AUD)) return null;
-  if (payload.iss !== team) return null;
-  if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
-  return String(payload.email || '').toLowerCase() || null;
-}
-
-const list = v => String(v || '').toLowerCase().split(/[,;\s]+/).filter(Boolean);
-function roleOf(email, env) {
-  if (list(env.ADMIN_EMAILS).includes(email)) return 'admin';
-  if (list(env.READONLY_EMAILS).includes(email)) return 'leitura';
-  return 'operador';
-}
-
 // ---------- Utilidades ----------
-const json = (obj, status = 200) => new Response(JSON.stringify(obj), {
-  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+const enc = new TextEncoder();
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const unhex = s => Uint8Array.from(s.match(/../g).map(h => parseInt(h, 16)));
+const randomHex = n => hex(crypto.getRandomValues(new Uint8Array(n)));
+const sha256 = async s => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+const normEmail = e => String(e || '').trim().toLowerCase();
+const list = v => String(v || '').toLowerCase().split(/[,;\s]+/).filter(Boolean);
+
+function timingSafeEqual(a, b) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+async function hashPassword(password, saltHex, iterations = PBKDF2_ITER) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: unhex(saltHex), iterations }, key, 256);
+  return hex(bits);
+}
+async function newPasswordFields(password) {
+  const salt = randomHex(16);
+  return { pass_salt: salt, pass_hash: await hashPassword(password, salt), iterations: PBKDF2_ITER };
+}
+function passwordProblem(p) {
+  if (typeof p !== 'string' || p.length < MIN_PASS) return `A senha precisa ter pelo menos ${MIN_PASS} caracteres.`;
+  if (p.length > 200) return 'Senha longa demais.';
+  if (!/[A-Za-z]/.test(p) || !/\d/.test(p)) return 'Use letras e números na senha.';
+  return null;
+}
+
+const json = (obj, status = 200, extra = {}) => new Response(JSON.stringify(obj), {
+  status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...extra },
 });
-const fail = (status, msg) => json({ error: msg }, status);
+const fail = (status, msg, extra) => json({ error: msg }, status, extra);
+const noContent = (extra = {}) => new Response(null, { status: 204, headers: { 'cache-control': 'no-store', ...extra } });
+
+function cookieHeader(token, maxAge) {
+  return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`;
+}
+function readCookie(request) {
+  const m = (request.headers.get('cookie') || '').match(new RegExp('(?:^|;\\s*)' + COOKIE + '=([a-f0-9]{64})'));
+  return m ? m[1] : null;
+}
+
+async function readJson(request) {
+  const text = await request.text();
+  if (text.length > MAX_BODY) return { tooBig: true };
+  try { const b = JSON.parse(text); return b && typeof b === 'object' && !Array.isArray(b) ? { body: b } : { bad: true }; }
+  catch { return { bad: true }; }
+}
 
 function deepMerge(a, b) {
   for (const [k, v] of Object.entries(b)) {
@@ -83,14 +108,53 @@ function deepMerge(a, b) {
   return a;
 }
 
-async function readBody(request) {
-  const text = await request.text();
-  if (text.length > MAX_BODY) return { tooBig: true };
-  try {
-    const b = JSON.parse(text);
-    if (!b || typeof b.data !== 'object' || Array.isArray(b.data) || b.data === null) return { bad: true };
-    return { data: b.data };
-  } catch { return { bad: true }; }
+// ---------- Sessões e limite de tentativas ----------
+async function currentUser(request, db) {
+  const token = readCookie(request);
+  if (!token) return null;
+  const th = await sha256(token);
+  const row = await db.prepare(
+    `SELECT u.email, u.name, u.role, u.must_change, s.expires_at FROM sessions s
+     JOIN users u ON u.email = s.email WHERE s.token_hash = ?1 AND u.active = 1`
+  ).bind(th).first();
+  if (!row || row.expires_at < Date.now()) return null;
+  // renova a sessão quando passou da metade do prazo
+  if (row.expires_at - Date.now() < SESSION_DAYS * 864e5 / 2) {
+    await db.prepare(`UPDATE sessions SET expires_at = ?1 WHERE token_hash = ?2`).bind(Date.now() + SESSION_DAYS * 864e5, th).run();
+  }
+  return { email: row.email, name: row.name, role: row.role, mustChange: !!row.must_change, tokenHash: th };
+}
+
+async function startSession(db, email, request) {
+  const token = randomHex(32);
+  const now = Date.now();
+  await db.batch([
+    db.prepare(`INSERT INTO sessions (token_hash, email, created_at, expires_at, ip, ua) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+      .bind(await sha256(token), email, now, now + SESSION_DAYS * 864e5, request.headers.get('cf-connecting-ip') || '', (request.headers.get('user-agent') || '').slice(0, 200)),
+    db.prepare(`UPDATE users SET last_login = ?1 WHERE email = ?2`).bind(now, email),
+    db.prepare(`DELETE FROM sessions WHERE expires_at < ?1`).bind(now),
+  ]);
+  return cookieHeader(token, SESSION_DAYS * 86400);
+}
+
+async function failCount(db, k) {
+  const r = await db.prepare(`SELECT count, window_start FROM login_fail WHERE k = ?1`).bind(k).first();
+  if (!r || Date.now() - r.window_start > LOCK_WINDOW_MS) return 0;
+  return r.count;
+}
+async function addFail(db, k) {
+  const now = Date.now();
+  await db.prepare(
+    `INSERT INTO login_fail (k, count, window_start) VALUES (?1, 1, ?2)
+     ON CONFLICT (k) DO UPDATE SET
+       count = CASE WHEN ?2 - window_start > ?3 THEN 1 ELSE count + 1 END,
+       window_start = CASE WHEN ?2 - window_start > ?3 THEN ?2 ELSE window_start END`
+  ).bind(k, now, LOCK_WINDOW_MS).run();
+}
+
+async function audit(db, email, action, col, id, data) {
+  await db.prepare(`INSERT INTO audit (at, email, action, col, doc_id, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+    .bind(Date.now(), email, action, col, id, data == null ? null : JSON.stringify(data)).run();
 }
 
 async function writeDoc(db, col, id, data, deleted, email, action) {
@@ -107,23 +171,95 @@ async function writeDoc(db, col, id, data, deleted, email, action) {
   ]);
 }
 
+const userOut = u => ({ email: u.email, name: u.name, role: u.role, active: !!u.active, mustChange: !!u.must_change, lastLogin: u.last_login || null, createdAt: u.created_at });
+
 // ---------- Rotas ----------
 export async function onRequest({ request, env, params }) {
   if (!env.DB) return fail(500, 'Banco D1 não configurado (binding DB).');
-  const email = await accessEmail(request, env);
-  if (!email) return fail(401, 'Não autenticado');
-  const role = roleOf(email, env);
-  await ensureSchema(env.DB);
-
+  const db = env.DB;
+  await ensureSchema(db);
   const parts = [].concat(params.path || []);
   const method = request.method;
+  const route = parts.join('/');
 
-  if (parts[0] === 'me' && method === 'GET') return json({ email, role });
+  // Proteção contra requisições de outros sites: toda escrita precisa deste cabeçalho.
+  if (method !== 'GET' && request.headers.get('x-dtruck') !== '1') return fail(403, 'Requisição recusada');
 
-  if (parts[0] === 'sync' && method === 'GET') {
+  // ----- Rotas públicas -----
+  if (route === 'setup' && method === 'GET') {
+    const n = await db.prepare(`SELECT COUNT(*) AS n FROM users`).first();
+    return json({ needsSetup: !n.n });
+  }
+
+  if (route === 'setup' && method === 'POST') {
+    const n = await db.prepare(`SELECT COUNT(*) AS n FROM users`).first();
+    if (n.n) return fail(409, 'O sistema já tem usuários. Entre com seu e-mail e senha.');
+    const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
+    const email = normEmail(r.body.email), name = String(r.body.name || '').trim().slice(0, 80);
+    if (!list(env.ADMIN_EMAILS).includes(email)) return fail(403, 'Este e-mail não está autorizado a criar o primeiro administrador.');
+    const prob = passwordProblem(r.body.password); if (prob) return fail(400, prob);
+    const now = Date.now(), pf = await newPasswordFields(r.body.password);
+    await db.prepare(`INSERT INTO users (email, name, role, pass_hash, pass_salt, iterations, active, must_change, created_at, updated_at)
+      VALUES (?1, ?2, 'admin', ?3, ?4, ?5, 1, 0, ?6, ?6)`).bind(email, name, pf.pass_hash, pf.pass_salt, pf.iterations, now).run();
+    await audit(db, email, 'setup', 'users', email, { role: 'admin' });
+    return noContent({ 'set-cookie': await startSession(db, email, request) });
+  }
+
+  if (route === 'login' && method === 'POST') {
+    const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
+    const email = normEmail(r.body.email), password = String(r.body.password || '');
+    const ip = request.headers.get('cf-connecting-ip') || 'local';
+    const kE = 'e:' + email, kI = 'i:' + ip;
+    if (await failCount(db, kE) >= MAX_FAIL_EMAIL || await failCount(db, kI) >= MAX_FAIL_IP)
+      return fail(429, 'Muitas tentativas erradas. Aguarde 15 minutos e tente de novo.');
+    const u = await db.prepare(`SELECT * FROM users WHERE email = ?1`).bind(email).first();
+    // calcula o hash mesmo se o usuário não existir, para não revelar quais e-mails existem pelo tempo de resposta
+    const h = await hashPassword(password, u ? u.pass_salt : '00'.repeat(16), u ? u.iterations : PBKDF2_ITER);
+    if (!u || !u.active || !timingSafeEqual(h, u.pass_hash)) {
+      await addFail(db, kE); await addFail(db, kI);
+      return fail(401, 'E-mail ou senha incorretos.');
+    }
+    await db.prepare(`DELETE FROM login_fail WHERE k = ?1`).bind(kE).run();
+    return json({ ok: true, mustChange: !!u.must_change }, 200, { 'set-cookie': await startSession(db, email, request) });
+  }
+
+  if (route === 'logout' && method === 'POST') {
+    const token = readCookie(request);
+    if (token) await db.prepare(`DELETE FROM sessions WHERE token_hash = ?1`).bind(await sha256(token)).run();
+    return noContent({ 'set-cookie': cookieHeader('', 0) });
+  }
+
+  // ----- Daqui para baixo precisa estar logado -----
+  const me = await currentUser(request, db);
+  if (!me) return fail(401, 'Não autenticado');
+
+  if (route === 'me' && method === 'GET') return json({ email: me.email, name: me.name, role: me.role, mustChange: me.mustChange });
+
+  if (route === 'password' && method === 'POST') {
+    const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
+    const u = await db.prepare(`SELECT * FROM users WHERE email = ?1`).bind(me.email).first();
+    const h = await hashPassword(String(r.body.current || ''), u.pass_salt, u.iterations);
+    if (!timingSafeEqual(h, u.pass_hash)) return fail(400, 'A senha atual está incorreta.');
+    const prob = passwordProblem(r.body.password); if (prob) return fail(400, prob);
+    if (r.body.password === r.body.current) return fail(400, 'A nova senha precisa ser diferente da atual.');
+    const pf = await newPasswordFields(r.body.password);
+    await db.batch([
+      db.prepare(`UPDATE users SET pass_hash = ?1, pass_salt = ?2, iterations = ?3, must_change = 0, updated_at = ?4 WHERE email = ?5`)
+        .bind(pf.pass_hash, pf.pass_salt, pf.iterations, Date.now(), me.email),
+      // encerra as outras sessões desta pessoa
+      db.prepare(`DELETE FROM sessions WHERE email = ?1 AND token_hash <> ?2`).bind(me.email, me.tokenHash),
+    ]);
+    await audit(db, me.email, 'password', 'users', me.email, null);
+    return noContent();
+  }
+
+  // Quem está com senha provisória só pode trocar a senha.
+  if (me.mustChange) return fail(403, 'Defina uma nova senha para continuar.');
+
+  if (route === 'sync' && method === 'GET') {
     const since = Math.max(0, parseInt(new URL(request.url).searchParams.get('since') || '0', 10) || 0);
     const LIMIT = 2000;
-    const { results } = await env.DB.prepare(
+    const { results } = await db.prepare(
       `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 ORDER BY seq LIMIT ?2`
     ).bind(since, LIMIT + 1).all();
     const more = results.length > LIMIT;
@@ -133,28 +269,93 @@ export async function onRequest({ request, env, params }) {
   if (parts[0] === 'docs' && parts.length === 3) {
     const [, col, id] = parts;
     if (!COLLECTIONS.has(col) || !ID_RE.test(id)) return fail(400, 'Caminho inválido');
-    if (role === 'leitura') return fail(403, 'Perfil só leitura');
-    if (ADMIN_ONLY.has(col) && role !== 'admin') return fail(403, 'Só administradores alteram configurações');
-
-    if (method === 'PUT') {
-      const b = await readBody(request);
-      if (b.tooBig) return fail(413, 'Registro grande demais');
-      if (b.bad) return fail(400, 'Corpo inválido');
-      await writeDoc(env.DB, col, id, b.data, false, email, 'set');
-      return new Response(null, { status: 204 });
-    }
-    if (method === 'PATCH') {
-      const b = await readBody(request);
-      if (b.tooBig) return fail(413, 'Registro grande demais');
-      if (b.bad) return fail(400, 'Corpo inválido');
-      const row = await env.DB.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
-      if (!row) return fail(404, 'Registro não encontrado');
-      await writeDoc(env.DB, col, id, deepMerge(JSON.parse(row.data), b.data), false, email, 'update');
-      return new Response(null, { status: 204 });
+    if (me.role === 'leitura') return fail(403, 'Perfil só leitura');
+    if (ADMIN_ONLY.has(col) && me.role !== 'admin') return fail(403, 'Só administradores alteram configurações');
+    if (method === 'PUT' || method === 'PATCH') {
+      const r = await readJson(request);
+      if (r.tooBig) return fail(413, 'Registro grande demais');
+      if (!r.body || !r.body.data || typeof r.body.data !== 'object' || Array.isArray(r.body.data)) return fail(400, 'Corpo inválido');
+      let data = r.body.data;
+      if (method === 'PATCH') {
+        const row = await db.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
+        if (!row) return fail(404, 'Registro não encontrado');
+        data = deepMerge(JSON.parse(row.data), data);
+      }
+      await writeDoc(db, col, id, data, false, me.email, method === 'PUT' ? 'set' : 'update');
+      return noContent();
     }
     if (method === 'DELETE') {
-      await writeDoc(env.DB, col, id, null, true, email, 'delete');
-      return new Response(null, { status: 204 });
+      await writeDoc(db, col, id, null, true, me.email, 'delete');
+      return noContent();
+    }
+    return fail(405, 'Método não permitido');
+  }
+
+  // ----- Usuários (só administradores) -----
+  if (parts[0] === 'users') {
+    if (me.role !== 'admin') return fail(403, 'Só administradores gerenciam usuários');
+    const adminsAtivos = async () => (await db.prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1`).first()).n;
+
+    if (parts.length === 1 && method === 'GET') {
+      const { results } = await db.prepare(`SELECT * FROM users ORDER BY name, email`).all();
+      return json({ users: results.map(userOut) });
+    }
+    if (parts.length === 1 && method === 'POST') {
+      const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
+      const email = normEmail(r.body.email), name = String(r.body.name || '').trim().slice(0, 80), role = r.body.role;
+      if (!EMAIL_RE.test(email)) return fail(400, 'E-mail inválido.');
+      if (!ROLES.has(role)) return fail(400, 'Perfil inválido.');
+      const prob = passwordProblem(r.body.password); if (prob) return fail(400, prob);
+      if (await db.prepare(`SELECT 1 FROM users WHERE email = ?1`).bind(email).first()) return fail(409, 'Já existe um usuário com este e-mail.');
+      const now = Date.now(), pf = await newPasswordFields(r.body.password);
+      await db.prepare(`INSERT INTO users (email, name, role, pass_hash, pass_salt, iterations, active, must_change, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7, ?7)`).bind(email, name, role, pf.pass_hash, pf.pass_salt, pf.iterations, now).run();
+      await audit(db, me.email, 'create', 'users', email, { name, role });
+      return noContent();
+    }
+    if (parts.length === 2) {
+      const email = normEmail(decodeURIComponent(parts[1]));
+      const u = await db.prepare(`SELECT * FROM users WHERE email = ?1`).bind(email).first();
+      if (!u) return fail(404, 'Usuário não encontrado');
+      if (method === 'PATCH') {
+        const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
+        const b = r.body, sets = [], vals = [], kill = [];
+        if (b.name !== undefined) { sets.push('name = ?'); vals.push(String(b.name).trim().slice(0, 80)); }
+        if (b.role !== undefined) {
+          if (!ROLES.has(b.role)) return fail(400, 'Perfil inválido.');
+          if (u.role === 'admin' && b.role !== 'admin' && u.active && await adminsAtivos() <= 1) return fail(400, 'Precisa existir pelo menos um administrador ativo.');
+          sets.push('role = ?'); vals.push(b.role);
+        }
+        if (b.active !== undefined) {
+          if (!b.active && email === me.email) return fail(400, 'Você não pode desativar o seu próprio acesso.');
+          if (!b.active && u.role === 'admin' && u.active && await adminsAtivos() <= 1) return fail(400, 'Precisa existir pelo menos um administrador ativo.');
+          sets.push('active = ?'); vals.push(b.active ? 1 : 0); if (!b.active) kill.push(email);
+        }
+        if (b.password !== undefined) {
+          const prob = passwordProblem(b.password); if (prob) return fail(400, prob);
+          const pf = await newPasswordFields(b.password);
+          sets.push('pass_hash = ?', 'pass_salt = ?', 'iterations = ?', 'must_change = 1'); vals.push(pf.pass_hash, pf.pass_salt, pf.iterations);
+          kill.push(email);
+        }
+        if (!sets.length) return fail(400, 'Nada para alterar.');
+        sets.push('updated_at = ?'); vals.push(Date.now());
+        const sql = `UPDATE users SET ${sets.map((s, i) => s.replace('?', '?' + (i + 1))).join(', ')} WHERE email = ?${sets.length + 1}`;
+        const stmts = [db.prepare(sql).bind(...vals, email)];
+        if (kill.length) stmts.push(db.prepare(`DELETE FROM sessions WHERE email = ?1`).bind(email));
+        await db.batch(stmts);
+        await audit(db, me.email, b.password !== undefined ? 'reset_password' : 'update', 'users', email, { name: b.name, role: b.role, active: b.active });
+        return noContent();
+      }
+      if (method === 'DELETE') {
+        if (email === me.email) return fail(400, 'Você não pode excluir o seu próprio usuário.');
+        if (u.role === 'admin' && u.active && await adminsAtivos() <= 1) return fail(400, 'Precisa existir pelo menos um administrador ativo.');
+        await db.batch([
+          db.prepare(`DELETE FROM sessions WHERE email = ?1`).bind(email),
+          db.prepare(`DELETE FROM users WHERE email = ?1`).bind(email),
+        ]);
+        await audit(db, me.email, 'delete', 'users', email, null);
+        return noContent();
+      }
     }
     return fail(405, 'Método não permitido');
   }

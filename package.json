@@ -2,7 +2,7 @@
   "name": "dtruck-financeiro",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev --var DEV_EMAIL:dev@local --var ADMIN_EMAILS:dev@local --port 8788",
+    "dev": "wrangler dev --var ADMIN_EMAILS:admin@local.test --port 8788",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

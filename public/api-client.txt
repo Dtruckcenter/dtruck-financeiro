@@ -15,15 +15,19 @@
     try {
       r = await fetch(url, {
         method, credentials: 'same-origin',
-        headers: body ? { 'content-type': 'application/json' } : {},
+        headers: Object.assign({ 'x-dtruck': '1' }, body ? { 'content-type': 'application/json' } : {}),
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch (e) { throw err('unavailable', 'Sem conexão com o servidor'); }
-    if (r.status === 401) throw err('unauthenticated', 'Sessão expirada. Recarregue a página para entrar de novo.');
-    if (r.status === 403) throw err('invalid_argument', 'Sem permissão');
-    if (r.status === 404) throw err('not_found', 'Registro não encontrado');
-    if (r.status === 413) throw err('quota_exceeded', 'Registro grande demais');
-    if (!r.ok) throw err('unavailable', 'Erro no servidor (' + r.status + ')');
+    if (!r.ok) {
+      let msg = ''; try { msg = (await r.json()).error || ''; } catch (e) {}
+      if (r.status === 401) throw err('unauthenticated', msg || 'Sessão expirada. Entre de novo.');
+      if (r.status === 403) throw err('invalid_argument', msg || 'Sem permissão');
+      if (r.status === 404) throw err('not_found', msg || 'Registro não encontrado');
+      if (r.status === 413) throw err('quota_exceeded', msg || 'Registro grande demais');
+      if (r.status === 400 || r.status === 409 || r.status === 429) throw err('rejected', msg || 'Pedido recusado');
+      throw err('unavailable', msg || 'Erro no servidor (' + r.status + ')');
+    }
     return r.status === 204 ? null : r.json();
   }
 
@@ -106,12 +110,24 @@
     // Faz o login (via Cloudflare Access), carrega todos os dados e começa a sincronizar.
     async init() {
       me = await call('GET', '/api/me');
+      if (me.mustChange) throw err('must_change', 'Defina uma nova senha');
       await sync();
-      timer = setInterval(() => { if (!document.hidden) sync().catch(e => console.warn(e)); }, POLL_MS);
+      timer = setInterval(() => { if (!document.hidden) sync().catch(e => { if (e.code === 'unauthenticated') location.reload(); else console.warn(e); }); }, POLL_MS);
       document.addEventListener('visibilitychange', () => { if (!document.hidden) sync().catch(() => {}); });
       return db;
     },
     me: () => me,
+    setupStatus: () => call('GET', '/api/setup'),
+    setup: (email, name, password) => call('POST', '/api/setup', { email, name, password }),
+    login: (email, password) => call('POST', '/api/login', { email, password }),
+    logout: () => call('POST', '/api/logout'),
+    changePassword: (current, password) => call('POST', '/api/password', { current, password }),
+    users: {
+      list: () => call('GET', '/api/users'),
+      create: (u) => call('POST', '/api/users', u),
+      update: (email, u) => call('PATCH', '/api/users/' + encodeURIComponent(email), u),
+      remove: (email) => call('DELETE', '/api/users/' + encodeURIComponent(email)),
+    },
     sync,
   };
 })();

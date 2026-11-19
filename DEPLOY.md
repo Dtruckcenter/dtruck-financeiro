@@ -50,27 +50,24 @@ Perfis:
 - **Operador:** qualquer pessoa liberada no login que não esteja nas listas acima. Lança, edita, importa notas e cadastra.
 - **Só leitura:** vê tudo e não altera nada.
 
-## 4. Login da equipe (Cloudflare Access)
+## 4. Login da equipe (e-mail e senha)
 
-1. Abra **Zero Trust**. Na primeira vez, escolha:
-   - um **nome de equipe**, por exemplo `dtruck`, que gera o endereço `dtruck.cloudflareaccess.com`;
-   - o plano **Free**, que vale para até 50 usuários. Pode pedir cartão, mas não cobra.
-2. Vá em **Access → Applications → Add an application → Self-hosted**.
-3. **Application name:** `Dtruck Financeiro`.
-4. **Domínios:** coloque o endereço `.workers.dev` do passo 2 e, depois do passo 5, também o domínio da Dtruck.
-5. **Policy:**
-   - nome `Equipe Dtruck`;
-   - ação **Allow**;
-   - regra **Include → Emails**, com o e-mail de cada pessoa da equipe.
-6. **Login:** deixe **One-time PIN** ligado. A pessoa recebe um código por e-mail.
-7. Salve, abra a aplicação e copie o **Application Audience (AUD) Tag**.
+O sistema tem login próprio, com e-mail e senha.
 
-Volte em **Worker → Settings → Variables and Secrets** e adicione:
+1. Em **Worker → Settings → Variables and Secrets**, a variável `ADMIN_EMAILS` define qual e-mail pode criar o **primeiro administrador**.
+2. No primeiro acesso, o sistema mostra a tela **"Primeiro acesso"**. O administrador informa nome, e-mail e cria a própria senha.
+3. Depois disso, o administrador cadastra a equipe no menu **Usuários**:
+   - cada pessoa recebe uma **senha provisória**;
+   - no primeiro login, o sistema obriga a pessoa a criar uma senha pessoal.
+4. **Esqueceu a senha?** O administrador clica em **Redefinir senha** na tela de usuários e passa a nova senha provisória.
 
-| Nome | Valor |
-|---|---|
-| `ACCESS_TEAM_DOMAIN` | `dtruck.cloudflareaccess.com`, com o seu nome de equipe |
-| `ACCESS_AUD` | o AUD Tag copiado |
+Segurança:
+- **Senhas:** são guardadas com criptografia PBKDF2-SHA256 e ninguém consegue ver a senha original.
+- **Tentativas erradas:** depois de 5 erros seguidos, o e-mail fica bloqueado por 15 minutos.
+- **Sessão:** dura 30 dias no aparelho e o botão **Sair** encerra na hora.
+- **Troca de senha:** desconecta os outros aparelhos da pessoa.
+
+Opcional: para uma camada extra, dá para colocar o **Cloudflare Access** na frente do sistema (Zero Trust → Access → Applications). Assim, só os e-mails da lista chegam até a tela de login.
 
 ## 5. Domínio da Dtruck
 
@@ -93,13 +90,13 @@ Depois que o domínio estiver ativo:
 2. Digite seu e-mail e o código que chegar.
 3. No rodapé do menu deve aparecer "Conectado como …" com o seu perfil.
 
-Para incluir ou tirar alguém da equipe, vá em **Zero Trust → Access → Applications → Dtruck Financeiro → Policies**.
+Para incluir ou tirar alguém da equipe, use o menu **Usuários**, que só aparece para administradores.
 
 ---
 
 ## Segurança e backup
 
-- **Login conferido a cada pedido:** o servidor confere a assinatura do login do Cloudflare Access em toda requisição. Sem login válido, nenhum dado sai do banco.
+- **Login conferido a cada pedido:** o servidor confere a sessão em toda requisição. Sem login válido, nenhum dado sai do banco.
 - **Histórico de alterações:** cada alteração fica registrada na tabela `audit`, com o e-mail de quem fez e o horário.
 - **Backup:** o D1 tem **Time Travel**, que permite voltar o banco a um ponto no tempo. Guarda 7 dias no plano grátis e 30 dias no plano pago (US$ 5/mês).
 
@@ -113,4 +110,4 @@ npm install
 npm run dev
 ```
 
-O sistema abre em `http://localhost:8788`, com um banco local de teste e o usuário `dev@local` como administrador.
+O sistema abre em `http://localhost:8788`, com um banco local de teste. No primeiro acesso, crie o administrador com o e-mail `admin@local.test`.
