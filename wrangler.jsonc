@@ -4,17 +4,17 @@
   "name": "dtruck-financeiro",
   "main": "src/index.js",
   "compatibility_date": "2025-09-01",
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
-  },
+  // As telas (public/) são embutidas no Worker no momento do deploy.
+  "rules": [
+    { "type": "Text", "globs": ["**/*.html", "**/*.txt"], "fallthrough": true },
+    { "type": "Data", "globs": ["**/*.png"], "fallthrough": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "dtruck-financeiro",
       // Copie o "Database ID" em Storage & Databases > D1 > dtruck-financeiro.
-      "database_id": "COLE_AQUI_O_DATABASE_ID"
+      "database_id": "c5ac57f1-78e3-4ae0-8a2d-fcfff3490ace"
     }
   ],
   // Mantém as variáveis (ADMIN_EMAILS, ACCESS_AUD...) configuradas no painel a cada deploy.

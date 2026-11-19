@@ -2,11 +2,11 @@
 
 Sistema de gestão financeira da Dtruck Center: entradas e saídas, importação de notas fiscais (NF-e, NFC-e, NFS-e), fluxo de caixa, DRE, painel, cadastro de clientes e de peças com controle de estoque.
 
-- `public/`: telas (HTML/JS, sem etapa de build)
+- `public/`: telas (embutidas no Worker no deploy)
   - `index.html`: o sistema
-  - `api-client.js`: sincroniza os dados com a API
+  - `api-client.txt`: sincroniza os dados com a API (servido como /api-client.js)
 - `src/index.js`: Worker (entrada); `src/api.js`: API com banco D1 e login pelo Cloudflare Access
-- `wrangler.jsonc`: configuração do Worker (assets, D1)
+- `wrangler.jsonc`: configuração do Worker (D1, arquivos embutidos)
 - `DEPLOY.md`: passo a passo para colocar no ar
 
 ## API
