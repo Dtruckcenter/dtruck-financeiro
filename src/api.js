@@ -3,10 +3,13 @@
 //
 // Variáveis de ambiente (Worker > Settings > Variables and Secrets):
 //   ADMIN_EMAILS   e-mail(s) autorizados a criar o PRIMEIRO administrador (só vale enquanto não há usuários)
+//   DFE_TOKEN      token do robô que consulta a Receita (GitHub Actions); sem ele as rotas /api/robo ficam desligadas
 // Binding D1: DB
 
-const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config']);
+const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys']);
 const ADMIN_ONLY = new Set(['config']);
+const ROBOT_ONLY = new Set(['dfe', 'sys']);          // só o robô da Receita grava aqui
+const CHAVE_RE = /^\d{44}$/;
 const ROLES = new Set(['admin', 'operador', 'leitura']);
 const ID_RE = /^[A-Za-z0-9_-]{1,190}$/;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
@@ -182,6 +185,8 @@ export async function onRequest({ request, env, params }) {
   const method = request.method;
   const route = parts.join('/');
 
+  if (parts[0] === 'robo') return robo(request, env, db, parts, method);
+
   // Proteção contra requisições de outros sites: toda escrita precisa deste cabeçalho.
   if (method !== 'GET' && request.headers.get('x-dtruck') !== '1') return fail(403, 'Requisição recusada');
 
@@ -260,7 +265,7 @@ export async function onRequest({ request, env, params }) {
     const since = Math.max(0, parseInt(new URL(request.url).searchParams.get('since') || '0', 10) || 0);
     const LIMIT = 2000;
     const { results } = await db.prepare(
-      `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 ORDER BY seq LIMIT ?2`
+      `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 AND col <> 'dfexml' ORDER BY seq LIMIT ?2`
     ).bind(since, LIMIT + 1).all();
     const more = results.length > LIMIT;
     return json({ docs: more ? results.slice(0, LIMIT) : results, more });
@@ -271,6 +276,7 @@ export async function onRequest({ request, env, params }) {
     if (!COLLECTIONS.has(col) || !ID_RE.test(id)) return fail(400, 'Caminho inválido');
     if (me.role === 'leitura') return fail(403, 'Perfil só leitura');
     if (ADMIN_ONLY.has(col) && me.role !== 'admin') return fail(403, 'Só administradores alteram configurações');
+    if (ROBOT_ONLY.has(col)) return fail(403, 'Estes dados vêm da Receita e não podem ser alterados');
     if (method === 'PUT' || method === 'PATCH') {
       const r = await readJson(request);
       if (r.tooBig) return fail(413, 'Registro grande demais');
@@ -289,6 +295,14 @@ export async function onRequest({ request, env, params }) {
       return noContent();
     }
     return fail(405, 'Método não permitido');
+  }
+
+  // XML completo de uma nota recebida pela Receita (fica fora da sincronização por ser grande)
+  if (parts[0] === 'xml' && parts.length === 2 && method === 'GET') {
+    if (!CHAVE_RE.test(parts[1])) return fail(400, 'Chave inválida');
+    const row = await db.prepare(`SELECT data FROM docs WHERE col = 'dfexml' AND id = ?1 AND deleted = 0`).bind(parts[1]).first();
+    if (!row) return fail(404, 'XML ainda não disponível');
+    return json({ xml: JSON.parse(row.data).xml });
   }
 
   // ----- Usuários (só administradores) -----
@@ -360,5 +374,76 @@ export async function onRequest({ request, env, params }) {
     return fail(405, 'Método não permitido');
   }
 
+  return fail(404, 'Rota não encontrada');
+}
+
+// ---------- Robô da Receita (Distribuição DF-e via GitHub Actions) ----------
+async function robo(request, env, db, parts, method) {
+  const auth = request.headers.get('authorization') || '';
+  if (!env.DFE_TOKEN || env.DFE_TOKEN.length < 32 || !timingSafeEqual(auth, 'Bearer ' + env.DFE_TOKEN)) return fail(401, 'Não autorizado');
+  const BOT = 'robo-receita';
+  const getDoc = async (col, id) => {
+    const r = await db.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
+    return r ? JSON.parse(r.data) : null;
+  };
+
+  // O que o robô precisa saber antes de consultar a Receita
+  if (parts[1] === 'estado' && method === 'GET') {
+    const st = (await getDoc('sys', 'dfe')) || {};
+    const { results: dfe } = await db.prepare(`SELECT id, data FROM docs WHERE col = 'dfe' AND deleted = 0`).all();
+    const docs = dfe.map(r => ({ id: r.id, ...JSON.parse(r.data) }));
+    const agora = Date.now();
+    const { results: fila } = await db.prepare(`SELECT id FROM docs WHERE col = 'dfefila' AND deleted = 0`).all();
+    return json({
+      ultNSU: st.ultNSU || '000000000000000',
+      // resumos que ainda não receberam "Ciência da Operação"
+      semCiencia: docs.filter(d => d.status === 'resumo' && !d.ciencia && d.situacao !== 'cancelada').map(d => d.id).slice(0, 40),
+      // ciência enviada há mais de 2 h e o XML completo ainda não chegou pelo NSU: buscar pela chave
+      semXml: docs.filter(d => d.status === 'resumo' && d.ciencia && agora - d.ciencia > 2 * 3600e3 && (!d.ultimaBusca || agora - d.ultimaBusca > 6 * 3600e3)).map(d => d.id).slice(0, 10),
+      // chaves bipadas no sistema que a Receita ainda não entregou
+      fila: fila.map(r => r.id).filter(id => !docs.some(d => d.id === id && d.status === 'completa')).slice(0, 10),
+    });
+  }
+
+  // Resultado de uma rodada
+  if (parts[1] === 'lote' && method === 'POST') {
+    const text = await request.text();
+    if (text.length > 20 * 1024 * 1024) return fail(413, 'Lote grande demais');
+    let b; try { b = JSON.parse(text); } catch { return fail(400, 'Corpo inválido'); }
+    const agora = Date.now();
+    for (const d of b.docs || []) {
+      if (!CHAVE_RE.test(d.chave || '')) continue;
+      const atual = (await getDoc('dfe', d.chave)) || {};
+      const novo = { ...atual, ...d.resumo, chave: d.chave, recebidoEm: atual.recebidoEm || agora };
+      if (d.xml) {
+        novo.status = 'completa';
+        await writeDoc(db, 'dfexml', d.chave, { xml: d.xml }, false, BOT, 'set');
+      } else if (!atual.status) novo.status = 'resumo';
+      if (d.resumo && d.resumo.situacao === 'cancelada') novo.situacao = 'cancelada';
+      await writeDoc(db, 'dfe', d.chave, novo, false, BOT, 'set');
+      if (novo.status === 'completa') await writeDoc(db, 'dfefila', d.chave, null, true, BOT, 'delete');
+    }
+    for (const ch of b.ciencia || []) {
+      const atual = await getDoc('dfe', ch); if (!atual) continue;
+      await writeDoc(db, 'dfe', ch, { ...atual, ciencia: agora }, false, BOT, 'update');
+    }
+    for (const ch of b.buscadas || []) {
+      const atual = await getDoc('dfe', ch);
+      if (atual) await writeDoc(db, 'dfe', ch, { ...atual, ultimaBusca: agora }, false, BOT, 'update');
+    }
+    for (const f of b.filaRespostas || []) {
+      const atual = await getDoc('dfefila', f.chave); if (!atual) continue;
+      await writeDoc(db, 'dfefila', f.chave, { ...atual, ultimaBusca: agora, resposta: String(f.msg || '').slice(0, 300) }, false, BOT, 'update');
+    }
+    const st = (await getDoc('sys', 'dfe')) || {};
+    await writeDoc(db, 'sys', 'dfe', {
+      ...st,
+      ultNSU: /^\d{15}$/.test(b.ultNSU || '') ? b.ultNSU : (st.ultNSU || '000000000000000'),
+      ultimaConsulta: agora,
+      ultimoStatus: String(b.status || '').slice(0, 300),
+      ok: !!b.ok,
+    }, false, BOT, 'set');
+    return noContent();
+  }
   return fail(404, 'Rota não encontrada');
 }

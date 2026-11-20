@@ -122,6 +122,7 @@
     login: (email, password) => call('POST', '/api/login', { email, password }),
     logout: () => call('POST', '/api/logout'),
     changePassword: (current, password) => call('POST', '/api/password', { current, password }),
+    getXml: (chave) => call('GET', '/api/xml/' + encodeURIComponent(chave)),
     users: {
       list: () => call('GET', '/api/users'),
       create: (u) => call('POST', '/api/users', u),

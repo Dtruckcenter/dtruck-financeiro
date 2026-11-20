@@ -1,3 +1,4 @@
 node_modules/
 .wrangler/
 .dev.vars
+.dfe_token_COPIAR_NO_GITHUB.txt

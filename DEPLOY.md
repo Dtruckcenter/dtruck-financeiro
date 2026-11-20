@@ -69,6 +69,35 @@ Segurança:
 
 Opcional: para uma camada extra, dá para colocar o **Cloudflare Access** na frente do sistema (Zero Trust → Access → Applications). Assim, só os e-mails da lista chegam até a tela de login.
 
+## 4b. Notas dos fornecedores direto da Receita (certificado digital A1)
+
+O robô `.github/workflows/sefaz-dfe.yml` roda **de hora em hora** no GitHub Actions. A cada rodada ele:
+1. consulta a **Distribuição DF-e** da Receita (Ambiente Nacional) com o certificado A1 da Dtruck;
+2. registra a **Ciência da Operação** nas notas novas, porque sem ela a Receita só entrega o resumo da nota;
+3. busca o XML completo e as chaves bipadas na tela **Entrada de mercadoria**;
+4. envia tudo ao sistema, onde as notas aparecem como **Pronta para entrada**.
+
+Configuração, uma vez só, em **GitHub → repositório → Settings → Secrets and variables → Actions**:
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| Secret | `CERT_PFX_BASE64` | o arquivo `.pfx` do certificado convertido em base64 (veja abaixo) |
+| Secret | `CERT_PASSWORD` | a senha do certificado |
+| Secret | `DFE_TOKEN` | o token do robô (o mesmo gravado no Worker) |
+| Variable | `DTRUCK_UF` | a sigla do estado da Dtruck, ex.: `RS` |
+
+**Converter o certificado em base64 no Windows:** abra o **PowerShell** na pasta do certificado e rode o comando abaixo, trocando o nome do arquivo:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("certificado.pfx")) | Set-Clipboard
+```
+
+O texto fica copiado na área de transferência. Cole no segredo `CERT_PFX_BASE64`.
+
+Para testar sem esperar a próxima hora: **Actions → Notas da Receita (DF-e) → Run workflow**.
+
+Quando o certificado for renovado, atualize só os segredos `CERT_PFX_BASE64` e `CERT_PASSWORD`. A tela de entrada avisa quando faltarem menos de 30 dias para o certificado vencer.
+
 ## 5. Domínio da Dtruck
 
 Para usar um domínio próprio num Worker, o **DNS do domínio precisa estar na Cloudflare**:

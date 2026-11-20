@@ -200,6 +200,7 @@ tr.off td{opacity:.55}
       <span class="grp">Cadastros</span>
       <a href="#clientes" data-v="clientes">Clientes</a>
       <a href="#pecas" data-v="pecas">Peças</a>
+      <a href="#entrada" data-v="entrada" id="nav-entrada">Entrada de mercadoria</a>
       <a href="#usuarios" data-v="usuarios" id="nav-users" hidden>Usuários</a>
     </nav>
     <div class="rail-foot" id="railfoot"></div>
@@ -261,7 +262,7 @@ const mesLabel = ym=>{const [y,m]=ym.split('-');return MESES_L[+m-1]+' de '+y};
 function nice(v){if(v<=0)return 1;const p=10**Math.floor(Math.log10(v));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
 
 // ---------- Estado ----------
-const S = {clientes:[],pecas:[],lancs:[],notas:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
+const S = {clientes:[],pecas:[],lancs:[],notas:[],dfe:[],dfefila:[],sys:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
 const UI = {view:'painel',mes:thisMonth,ano:+today.slice(0,4),lf:{mes:thisMonth,tipo:'',status:'',cat:'',q:''},cq:'',pq:'',pf:''};
 try{const s=JSON.parse(localStorage.getItem('dtruck-ui')||'{}');if(s.mes)UI.mes=s.mes;}catch(e){}
 const saveUI = ()=>{try{localStorage.setItem('dtruck-ui',JSON.stringify({mes:UI.mes}))}catch(e){}};
@@ -318,9 +319,10 @@ function lineChart(points){ // [{lbl,v,proj}]
 }
 
 // ---------- Views ----------
-const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios};
+const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios,entrada:vEntrada};
 function render(){
   document.querySelectorAll('#menu a').forEach(a=>a.classList.toggle('on',a.dataset.v===UI.view));
+  {const n=entradasPendentes().length;$('#nav-entrada').textContent='Entrada de mercadoria'+(n?` (${n})`:'')}
   const m=$('#main');
   if(S.noDb){m.innerHTML=`<div class="panel empty"><h2>Não foi possível carregar o sistema</h2><p>${esc(S.noDb)}</p><p><button class="btn pri" onclick="location.reload()">Tentar de novo</button></p></div>`;return}
   if(!(S.ready.c&&S.ready.p&&S.ready.l&&S.ready.n)){m.innerHTML='<div class="loading" id="ld">Carregando dados da Dtruck…</div>';return}
@@ -877,6 +879,79 @@ async function runImport(){
   render();
 }
 
+
+// ---------- Entrada de mercadoria (notas de fornecedores baixadas da Receita) ----------
+function chaveValida(ch){if(!/^\d{44}$/.test(ch))return false;let s=0,w=2;for(let i=42;i>=0;i--){s+=+ch[i]*w;w=w===9?2:w+1}const r=s%11;return (r<2?0:11-r)===+ch[43]}
+const chaveNum=ch=>({cnpj:ch.slice(6,20),serie:String(+ch.slice(22,25)),numero:String(+ch.slice(25,34)),mod:ch.slice(20,22)});
+const notaImportada=ch=>S.notas.find(n=>n.id===ch||n.chave===ch);
+function entradasPendentes(){return S.dfe.filter(d=>d.status==='completa'&&d.situacao!=='cancelada'&&!notaImportada(d.id))}
+UI.ent={msg:null,todas:false};
+function entMsg(tipo,html){UI.ent.msg={tipo,html};render();setTimeout(()=>{const i=$('#ent-chave');if(i){i.value='';i.focus()}},30)}
+async function darEntrada(ch){
+  let xml;
+  try{xml=(await DtruckAPI.getXml(ch)).xml}catch(e){return entMsg('neg','Não consegui buscar o XML desta nota agora: '+esc(e.message||'erro')+'. Tente de novo.')}
+  const list=parseXmlText(xml,'Receita '+ch.slice(-8)+'.xml');
+  UI.imp={list,reading:false,me:digits(S.config.cnpj)||DTRUCK_CNPJ,meNome:S.config.cnpjNome||'DTRUCK COMERCIO DE PEÇAS LTDA',guessed:false,estoque:true,clientes:true,avista:true};
+  reclassify();UI.ent.msg=null;location.hash='#notas';
+}
+async function lerChave(raw){
+  const ch=digits(raw);
+  if(ch.length!==44)return entMsg('neg','A chave de acesso tem 44 números. Confira e tente de novo.');
+  if(!chaveValida(ch))return entMsg('neg','Esta chave não é válida (dígito verificador não confere). Bipe de novo ou confira a digitação.');
+  const info=chaveNum(ch), me=digits(S.config.cnpj)||DTRUCK_CNPJ;
+  const imp=notaImportada(ch);
+  if(imp)return entMsg('ok',`A NF ${esc(info.numero)} já deu entrada${imp.importadoEm?' em '+new Date(imp.importadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):''}. Nada foi alterado.`);
+  if(info.cnpj===me)return entMsg('pend','Esta nota foi emitida pela própria Dtruck. Para vendas, use <a href="#notas">Importar notas</a>.');
+  const d=S.dfe.find(x=>x.id===ch);
+  if(d&&d.situacao==='cancelada')return entMsg('neg',`A NF ${esc(info.numero)} de ${esc(d.emitNome||fmtDoc(info.cnpj))} foi <b>cancelada</b> pelo fornecedor. Não dê entrada.`);
+  if(d&&d.status==='completa')return darEntrada(ch);
+  if(d)return entMsg('pend',`A Receita já informou a NF ${esc(info.numero)} de ${esc(d.emitNome||fmtDoc(info.cnpj))}. A ciência foi registrada e o XML completo chega na próxima consulta (até 1 hora). Bipe de novo depois.`);
+  const f=S.dfefila.find(x=>x.id===ch);
+  if(f)return entMsg('pend',`Esta nota já foi pedida à Receita.${f.resposta?' Última resposta: '+esc(f.resposta):' Aguardando a próxima consulta (até 1 hora).'}`);
+  try{await S.db.doc('dfefila/'+ch).set({pedidoEm:Date.now(),por:(DtruckAPI.me()||{}).email||'',cnpj:info.cnpj,numero:info.numero})}
+  catch(e){return entMsg('neg','Não consegui registrar o pedido: '+esc(e.message||'erro'))}
+  entMsg('pend',`NF ${esc(info.numero)} (CNPJ ${fmtDoc(info.cnpj)}) pedida à Receita. Ela aparece na lista abaixo em até 1 hora, pronta para dar entrada.`);
+}
+function vEntrada(){
+  afterHooks.push(()=>{const i=$('#ent-chave');if(!i)return;i.focus();
+    // o leitor de código de barras "digita" a chave e aperta Enter: processa uma vez só
+    const go=()=>{const v=digits(i.value);if(!v)return;const k=v+'|'+Math.floor(Date.now()/1500);if(UI.ent.last===k)return;UI.ent.last=k;lerChave(v)};
+    i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go()}});
+    i.addEventListener('input',()=>{if(digits(i.value).length===44)go()});
+    const t=$('#ent-todas');if(t)t.onchange=()=>{UI.ent.todas=t.checked;render()};
+  });
+  const st=S.sys.find(x=>x.id==='dfe');
+  const quando=st&&st.ultimaConsulta?new Date(st.ultimaConsulta).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'';
+  const fila=S.dfefila.filter(f=>!S.dfe.some(d=>d.id===f.id&&d.status==='completa'));
+  const rows=[...S.dfe.map(d=>({d,ch:d.id,imp:notaImportada(d.id)})),...fila.filter(f=>!S.dfe.some(d=>d.id===f.id)).map(f=>({f,ch:f.id}))]
+    .filter(r=>UI.ent.todas||!(r.imp))
+    .sort((a,b)=>String((b.d&&b.d.dhEmi)||'').localeCompare(String((a.d&&a.d.dhEmi)||''))||(b.f?1:0)-(a.f?1:0));
+  const pill=r=>{if(r.f)return '<span class="pill info">Pedida à Receita</span>';const d=r.d;
+    if(d.situacao==='cancelada')return '<span class="pill late">Cancelada</span>';
+    if(r.imp)return '<span class="pill ok">Entrada feita</span>';
+    if(d.status==='completa')return '<span class="pill in">Pronta para entrada</span>';
+    return '<span class="pill pend">Aguardando XML</span>'};
+  const M=UI.ent.msg;
+  const msgCls={ok:'background:var(--pos-soft);border-color:var(--pos)',neg:'background:var(--neg-soft);border-color:var(--neg)',pend:''};
+  return `<div class="head"><div><h1>Entrada de mercadoria</h1><p class="sub">Notas que os fornecedores emitiram contra o CNPJ da Dtruck, baixadas da Receita de hora em hora com o certificado digital.</p></div></div>
+  <div class="panel" style="margin-bottom:16px">
+    <label for="ent-chave" style="font-weight:700;display:block;margin-bottom:8px">Bipe o código de barras do DANFE ou digite a chave de acesso</label>
+    <input id="ent-chave" inputmode="numeric" autocomplete="off" placeholder="44 números da chave de acesso" style="width:100%;font-size:18px;padding:12px 14px;font-family:var(--f-mono);letter-spacing:.04em">
+    <p class="hint" style="margin:8px 0 0">Com leitor de código de barras, basta apontar para o código do DANFE. Notas prontas abrem direto a conferência dos itens.</p>
+  </div>
+  ${M?`<div class="banner" style="${msgCls[M.tipo]||''}"><span>${M.html}</span><button class="btn sm" data-act="ent-ok">OK</button></div>`:''}
+  <div class="summary"><span>${st?`Última consulta à Receita: <b>${quando}</b> ${st.ok?'<span class="pill ok">OK</span>':'<span class="pill late">Com problema</span>'}`:'<span class="pill pend">O robô da Receita ainda não rodou</span>'}</span>${st&&st.ultimoStatus?`<span class="muted">${esc(st.ultimoStatus)}</span>`:''}</div>
+  <div class="filters"><label class="check"><input type="checkbox" id="ent-todas" ${UI.ent.todas?'checked':''}> Mostrar também as notas que já deram entrada</label></div>
+  ${rows.length?`<div class="tw"><table><thead><tr><th>Emissão</th><th>Nota</th><th>Fornecedor</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody>${rows.map(r=>{const i=chaveNum(r.ch),d=r.d||{};
+    return `<tr><td>${d.dhEmi?fmtD(d.dhEmi.slice(0,10)):'—'}</td><td><b>NF ${esc(i.numero)}</b><div class="hint">Série ${esc(i.serie)}</div></td><td>${esc(d.emitNome||'')||'<span class="muted">Aguardando dados</span>'}<div class="hint">${fmtDoc(d.emitCnpj||i.cnpj)}</div>${r.f&&r.f.resposta?`<div class="hint">${esc(r.f.resposta)}</div>`:''}</td>
+    <td class="num">${d.valor?fmt(d.valor):'—'}</td><td>${pill(r)}</td>
+    <td><div class="act">${r.d&&d.status==='completa'&&!r.imp&&d.situacao!=='cancelada'?`<button class="btn sm pri" data-act="ent-dar" data-id="${r.ch}">Dar entrada</button>`:''}</div></td></tr>`}).join('')}</tbody></table></div>`
+  :`<p class="panel empty">${S.dfe.length?'Todas as notas recebidas já deram entrada.':'Nenhuma nota de fornecedor recebida ainda. Quando o robô da Receita rodar, as notas emitidas contra a Dtruck aparecem aqui.'}</p>`}`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;
+  if(b.dataset.act==='ent-dar')darEntrada(b.dataset.id);
+  if(b.dataset.act==='ent-ok'){UI.ent.msg=null;render()}});
+
 // ---------- Login, senha e usuários ----------
 function genPass(){const a='abcdefghjkmnpqrstuvwxyz',A='ABCDEFGHJKLMNPQRSTUVWXYZ',d='23456789';const r=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;
   const pick=s=>s[r(s.length)];let p=pick(A)+pick(a)+pick(a)+pick(a)+'-'+pick(d)+pick(d)+pick(d)+pick(d)+'-'+pick(A)+pick(a)+pick(a)+pick(a);return p}
@@ -1027,6 +1102,7 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
   const map=d=>({id:d.id,...d.data()});
   const sub=(col,key,flag)=>db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);S.ready[flag]=1;if(S.ready.c&&S.ready.p&&S.ready.l)clearTimeout(to);rerender()},err=>{console.error(err);S.ready[flag]=1;rerender()});
   sub('clientes','clientes','c');sub('pecas','pecas','p');sub('lancamentos','lancs','l');sub('notas','notas','n');
+  for(const [col,key] of [['dfe','dfe'],['dfefila','dfefila'],['sys','sys']])db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);rerender()},()=>{});
   db.doc('config/geral').onSnapshot(s=>{S.config=s.exists?s.data():{saldoInicial:0};rerender()},()=>{});
 })();
 </script>

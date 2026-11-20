@@ -1,0 +1,54 @@
+name: Notas da Receita (DF-e)
+
+# Baixa de hora em hora as NF-e emitidas contra o CNPJ da Dtruck e envia ao sistema.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sefaz-dfe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      # Os servidores da Receita usam certificados da ICP-Brasil, que não vêm instalados no Linux.
+      - name: Baixar cadeia de certificados da ICP-Brasil
+        run: |
+          set -e
+          mkdir -p icp && cd icp
+          curl -fsSL --retry 3 -o ac.zip https://acraiz.icpbrasil.gov.br/credenciadas/CertificadosAC-ICP-Brasil/ACcompactado.zip
+          unzip -q -o ac.zip
+          : > ../icp-brasil.pem
+          find . -type f \( -iname '*.crt' -o -iname '*.cer' -o -iname '*.pem' \) | while read -r f; do
+            openssl x509 -in "$f" -outform PEM >> ../icp-brasil.pem 2>/dev/null || \
+            openssl x509 -inform DER -in "$f" -outform PEM >> ../icp-brasil.pem 2>/dev/null || true
+          done
+          echo "Certificados ICP-Brasil: $(grep -c 'BEGIN CERTIFICATE' ../icp-brasil.pem)"
+
+      - name: Consultar a Receita
+        env:
+          NODE_EXTRA_CA_CERTS: ${{ github.workspace }}/icp-brasil.pem
+          CERT_PFX_BASE64: ${{ secrets.CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+          DFE_TOKEN: ${{ secrets.DFE_TOKEN }}
+          API_URL: ${{ vars.API_URL || 'https://dtruck-financeiro.dtruckcenter-contratos.workers.dev' }}
+          DTRUCK_CNPJ: ${{ vars.DTRUCK_CNPJ || '53995291000161' }}
+          DTRUCK_UF: ${{ vars.DTRUCK_UF }}
+        run: node scripts/sefaz-dfe.mjs
