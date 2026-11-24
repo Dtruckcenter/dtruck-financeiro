@@ -151,6 +151,14 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+.nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
+.seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.seltab button{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
+.seltab button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--accent)}
+.batchbar{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--ink);color:var(--bg);border-radius:8px;padding:10px 14px;margin-top:12px;z-index:5}
+.batchbar .btn{border-color:transparent}
+td.due{white-space:nowrap}td.due .hint{white-space:nowrap}
 .auth{position:fixed;inset:0;background:var(--rail);display:flex;align-items:center;justify-content:center;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:70;overflow-y:auto}
 .auth-wrap{display:flex;flex-direction:column;align-items:center;width:100%;max-width:390px;margin:auto}
 .auth-wrap>img{width:170px;height:auto;margin-bottom:22px}
@@ -193,6 +201,8 @@ tr.off td{opacity:.55}
       <span class="grp">Visão geral</span>
       <a href="#painel" data-v="painel">Painel</a>
       <span class="grp">Financeiro</span>
+      <a href="#pagar" data-v="pagar" id="nav-pagar">Contas a pagar</a>
+      <a href="#receber" data-v="receber" id="nav-receber">Contas a receber</a>
       <a href="#lancamentos" data-v="lancamentos">Entradas e saídas</a>
       <a href="#notas" data-v="notas">Importar notas</a>
       <a href="#fluxo" data-v="fluxo">Fluxo de caixa</a>
@@ -319,10 +329,12 @@ function lineChart(points){ // [{lbl,v,proj}]
 }
 
 // ---------- Views ----------
-const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios,entrada:vEntrada};
+const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios,entrada:vEntrada,pagar:()=>vContas('saida'),receber:()=>vContas('entrada')};
 function render(){
   document.querySelectorAll('#menu a').forEach(a=>a.classList.toggle('on',a.dataset.v===UI.view));
   {const n=entradasPendentes().length;$('#nav-entrada').textContent='Entrada de mercadoria'+(n?` (${n})`:'')}
+  {const v=t=>S.lancs.filter(l=>l.tipo===t&&isLate(l)).length;const a=v('saida'),b=v('entrada');
+   $('#nav-pagar').innerHTML='Contas a pagar'+(a?` <span class="nav-badge">${a}</span>`:'');$('#nav-receber').innerHTML='Contas a receber'+(b?` <span class="nav-badge">${b}</span>`:'')}
   const m=$('#main');
   if(S.noDb){m.innerHTML=`<div class="panel empty"><h2>Não foi possível carregar o sistema</h2><p>${esc(S.noDb)}</p><p><button class="btn pri" onclick="location.reload()">Tentar de novo</button></p></div>`;return}
   if(!(S.ready.c&&S.ready.p&&S.ready.l&&S.ready.n)){m.innerHTML='<div class="loading" id="ld">Carregando dados da Dtruck…</div>';return}
@@ -882,6 +894,76 @@ async function runImport(){
   render();
 }
 
+
+
+// ---------- Contas a pagar / Contas a receber ----------
+UI.contas={saida:{st:'aberto',per:'',q:'',sel:new Set()},entrada:{st:'aberto',per:'',q:'',sel:new Set()}};
+const addDias=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+const diasAte=iso=>Math.round((new Date(iso+'T12:00:00')-new Date(today+'T12:00:00'))/864e5);
+function contasFiltradas(tipo){
+  const f=UI.contas[tipo], q=f.q.trim().toLowerCase(), em7=addDias(today,7), em30=addDias(today,30);
+  return S.lancs.filter(l=>l.tipo===tipo&&
+    (f.st==='todas'||(f.st==='pagas'?l.pago:!l.pago))&&
+    (f.st!=='vencidas'||isLate(l))&&(f.st!=='hoje'||l.data===today)&&(f.st!=='7d'||(l.data>=today&&l.data<=em7))&&(f.st!=='30d'||(l.data>=today&&l.data<=em30))&&
+    (!f.per||(f.st==='pagas'?caixaDate(l):l.data).startsWith(f.per))&&
+    (!q||[l.descricao,l.documento,l.fornecedor,cliNome(l.clienteId),CAT[l.categoria]?.nome].join(' ').toLowerCase().includes(q)))
+   .sort((a,b)=>f.st==='pagas'?caixaDate(b).localeCompare(caixaDate(a)):a.data.localeCompare(b.data));
+}
+function contasTabela(tipo){
+  const f=UI.contas[tipo], L=contasFiltradas(tipo), P=tipo==='saida';
+  for(const id of [...f.sel])if(!L.some(l=>l.id===id&&!l.pago))f.sel.delete(id);
+  const selL=L.filter(l=>f.sel.has(l.id)), abertos=L.filter(l=>!l.pago);
+  const todasSel=abertos.length&&abertos.every(l=>f.sel.has(l.id));
+  const quando=l=>{if(l.pago)return `<span class="hint">${P?'Pago':'Recebido'} em ${fmtD(caixaDate(l))}</span>`;const d=diasAte(l.data);
+    return d<0?`<span class="hint neg">${-d} dia(s) em atraso</span>`:d===0?'<span class="hint" style="color:var(--warn)">Vence hoje</span>':`<span class="hint">em ${d} dia(s)</span>`};
+  return `<div class="summary"><span>${L.length} conta(s)</span><span>Total <b>${fmt(sum(L,l=>+l.valor))}</b></span>${abertos.length&&f.st!=='pagas'?`<span>Em aberto <b class="${P?'neg':'pos'}">${fmt(sum(abertos,l=>+l.valor))}</b></span>`:''}</div>
+  <div class="tw"><table><thead><tr><th style="width:34px"><input type="checkbox" data-ct="all" data-t="${tipo}" ${todasSel?'checked':''} ${abertos.length?'':'disabled'} aria-label="Selecionar todas em aberto"></th><th>Vencimento</th><th>${P?'Fornecedor':'Cliente'}</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${L.length?L.map(l=>`<tr><td>${l.pago?'':`<input type="checkbox" data-ct="one" data-t="${tipo}" data-id="${l.id}" ${f.sel.has(l.id)?'checked':''} aria-label="Selecionar">`}</td>
+    <td class="due"><b>${fmtD(l.data)}</b><div>${quando(l)}</div></td>
+    <td>${esc(P?l.fornecedor:cliNome(l.clienteId))||'<span class="muted">—</span>'}</td>
+    <td>${esc(l.descricao)}${l.auto?' <span class="pill info" title="Criada pela nota do fornecedor baixada da Receita">Receita</span>':''}${l.documento?`<div class="hint">${esc(l.documento)}</div>`:''}</td>
+    <td>${esc(CAT[l.categoria]?.nome||'—')}</td><td>${esc(l.forma||'—')}</td>
+    <td class="num ${P?'neg':'pos'}"><b>${fmt(l.valor)}</b></td><td>${statusPill(l)}</td>
+    <td><div class="act">${l.pago?`<button class="btn sm ghost" data-act="unpay" data-id="${l.id}">Estornar</button>`:`<button class="btn sm" data-act="pay" data-id="${l.id}">${P?'Pagar':'Receber'}</button>`}<button class="btn sm ghost" data-act="edit-lanc" data-id="${l.id}">Editar</button><button class="btn sm ghost danger" data-act="del-lanc" data-id="${l.id}">Excluir</button></div></td></tr>`).join('')
+  :`<tr><td colspan="9" class="empty">${f.st==='aberto'?(P?'Nenhuma conta a pagar em aberto.':'Nenhuma conta a receber em aberto.'):'Nenhuma conta encontrada com esses filtros.'}</td></tr>`}
+  </tbody></table></div>
+  ${selL.length?`<div class="batchbar"><span>${selL.length} selecionada(s) · <b>${fmt(sum(selL,l=>+l.valor))}</b></span><span style="display:flex;gap:8px"><button class="btn sm" data-act="ct-clear" data-t="${tipo}">Limpar</button><button class="btn sm pri" data-act="ct-batch" data-t="${tipo}">${P?'Pagar':'Receber'} selecionadas</button></span></div>`:''}`;
+}
+function vContas(tipo){
+  const f=UI.contas[tipo], P=tipo==='saida', ab=S.lancs.filter(l=>l.tipo===tipo&&!l.pago);
+  const venc=ab.filter(isLate), hoje=ab.filter(l=>l.data===today), d7=ab.filter(l=>l.data>=today&&l.data<=addDias(today,7)), d30=ab.filter(l=>l.data>=today&&l.data<=addDias(today,30));
+  const mes=S.lancs.filter(l=>l.tipo===tipo&&l.pago&&caixaDate(l).startsWith(thisMonth));
+  afterHooks.push(()=>{const upd=()=>{$('#ct-tab').innerHTML=contasTabela(tipo)};
+    $('#ct-per').onchange=e=>{f.per=e.target.value;upd()};
+    let t;$('#ct-q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{f.q=e.target.value;upd()},180)}});
+  const tabs=[['aberto','Em aberto'],['vencidas','Vencidas'],['hoje','Vencem hoje'],['7d','Próximos 7 dias'],['30d','Próximos 30 dias'],['pagas',P?'Pagas':'Recebidas'],['todas','Todas']];
+  const k=(st,lbl,list,cls='')=>`<div class="kpi click ${f.st===st?'hl':''}" data-act="ct-st" data-t="${tipo}" data-st="${st}" role="button" tabindex="0"><span class="lbl">${lbl}</span><span class="val ${cls}">${fmt(sum(list,l=>+l.valor))}</span><span class="note">${list.length} conta(s)</span></div>`;
+  return `<div class="head"><div><h1>${P?'Contas a pagar':'Contas a receber'}</h1><p class="sub">${P?'Boletos e despesas a pagar. As contas das notas dos fornecedores entram sozinhas pela Receita.':'Valores que os clientes devem à Dtruck, por vencimento.'}</p></div>
+    <div class="tools"><button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>
+  <div class="kpis">${k('vencidas','Vencidas',venc,venc.length?'neg':'')}${k('hoje','Vencem hoje',hoje)}${k('7d','Próximos 7 dias',d7)}${k('30d','Próximos 30 dias',d30)}${k('aberto','Total em aberto',ab)}
+    <div class="kpi click ${f.st==='pagas'?'hl':''}" data-act="ct-st" data-t="${tipo}" data-st="pagas" role="button" tabindex="0"><span class="lbl">${P?'Pago':'Recebido'} em ${MESES_L[+thisMonth.slice(5)-1]}</span><span class="val ${P?'neg':'pos'}">${fmt(sum(mes,l=>+l.valor))}</span><span class="note">${mes.length} conta(s)</span></div></div>
+  <div class="seltab">${tabs.map(([st,l])=>`<button type="button" class="${f.st===st?'on':''}" data-act="ct-st" data-t="${tipo}" data-st="${st}">${l}</button>`).join('')}</div>
+  <div class="filters"><input type="month" id="ct-per" value="${f.per}" aria-label="Mês"><button class="btn sm" data-act="ct-per-clear" data-t="${tipo}">Qualquer mês</button>
+    <input type="search" id="ct-q" placeholder="Buscar ${P?'fornecedor':'cliente'}, descrição ou nº da nota" value="${esc(f.q)}"></div>
+  <div id="ct-tab">${contasTabela(tipo)}</div>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const T=b.dataset.t,f=T&&UI.contas[T];
+  switch(b.dataset.act){
+    case 'ct-st':f.st=b.dataset.st;f.sel.clear();if(['vencidas','hoje','7d','30d'].includes(f.st))f.per='';render();break;
+    case 'ct-per-clear':f.per='';render();break;
+    case 'ct-clear':f.sel.clear();$('#ct-tab').innerHTML=contasTabela(T);break;
+    case 'new-conta':lancForm({tipo:b.dataset.tipo,categoria:b.dataset.tipo==='entrada'?'venda_pecas':'outras_desp',pago:false,forma:'Boleto',data:addDias(today,0)});break;
+    case 'unpay':{const l=S.lancs.find(x=>x.id===b.dataset.id);confirmBox('Estornar',`Voltar “${esc(l.descricao)}” para ${l.tipo==='entrada'?'a receber':'a pagar'}?`,'Estornar',async()=>{await guard(S.db.doc('lancamentos/'+l.id).update({pago:false,dataPagamento:''}),'Estornado')});break}
+    case 'ct-batch':{const L=S.lancs.filter(l=>f.sel.has(l.id)&&!l.pago);if(!L.length)return;const P=T==='saida';
+      openModal(`<h2>${P?'Pagar':'Receber'} ${L.length} conta(s)</h2><p>Total <b>${fmt(sum(L,l=>+l.valor))}</b></p><div class="form"><div class="f"><label for="bt-d">Data</label><input id="bt-d" type="date" name="d" value="${today}"></div><div class="f"><label for="bt-f">Forma</label><select id="bt-f" name="f"><option value="">Manter a de cada conta</option>${FORMAS.map(x=>`<option>${x}</option>`).join('')}</select></div></div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Confirmar</button></div>`,
+        async d=>{const ok=await guard((async()=>{for(const l of L)await S.db.doc('lancamentos/'+l.id).update(d.f?{pago:true,dataPagamento:d.d||today,forma:d.f}:{pago:true,dataPagamento:d.d||today})})(),`${L.length} conta(s) baixada(s)`);if(ok)f.sel.clear()});break}
+  }
+});
+document.addEventListener('change',e=>{const c=e.target;if(!c.dataset||!c.dataset.ct)return;const T=c.dataset.t,f=UI.contas[T];
+  if(c.dataset.ct==='one'){c.checked?f.sel.add(c.dataset.id):f.sel.delete(c.dataset.id)}
+  else{const ab=contasFiltradas(T).filter(l=>!l.pago);if(c.checked)ab.forEach(l=>f.sel.add(l.id));else f.sel.clear()}
+  $('#ct-tab').innerHTML=contasTabela(T)});
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('kpi')&&e.target.dataset.act){e.preventDefault();e.target.click()}});
 
 // ---------- Entrada de mercadoria (notas de fornecedores baixadas da Receita) ----------
 function chaveValida(ch){if(!/^\d{44}$/.test(ch))return false;let s=0,w=2;for(let i=42;i>=0;i--){s+=+ch[i]*w;w=w===9?2:w+1}const r=s%11;return (r<2?0:11-r)===+ch[43]}
