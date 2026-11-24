@@ -152,7 +152,7 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
-main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
+main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
 .nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
 .seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .seltab button{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
@@ -1484,7 +1484,7 @@ function vLaudos(){
   <div class="filters"><input type="search" id="lq" placeholder="Buscar nº do laudo, placa, frota, cliente ou assunto" value="${esc(UI.laudo.q)}"></div>
   <div class="tw"><table><thead><tr><th>Nº</th><th>Data</th><th>Assunto</th><th>Caminhão</th><th>Cliente</th><th></th></tr></thead><tbody>
   ${L.length?L.map(l=>{const v=l.veiculo||{};return `<tr><td><b>${esc(l.numero)}</b></td><td>${fmtD(l.data)}</td><td style="max-width:320px">${esc(l.assunto)}</td><td><b>${esc(placaFmt(v.placa))||'—'}</b><div class="hint">${esc(v.descricao||'')}${v.frota?' · frota '+esc(v.frota):''}</div></td><td>${esc(l.clienteNome)||'—'}</td>
-    <td><div class="act"><button class="btn sm" data-act="lau-open" data-id="${l.id}">Abrir</button><button class="btn sm ghost" data-act="lau-print" data-id="${l.id}">Imprimir / PDF</button><button class="btn sm ghost" data-act="lau-dup" data-id="${l.id}">Duplicar</button></div></td></tr>`}).join('')
+    <td><div class="act"><button class="btn sm" data-act="lau-open" data-id="${l.id}">Abrir</button><button class="btn sm ghost" data-act="lau-print" data-id="${l.id}">Imprimir / PDF</button><button class="btn sm ghost" data-act="lau-dup" data-id="${l.id}">Duplicar</button>${can('laudos','editar')?`<button class="btn sm ghost danger" data-act="lau-del-list" data-id="${l.id}">Excluir</button>`:''}</div></td></tr>`}).join('')
   :`<tr><td colspan="6" class="empty">${S.laudos.length?'Nenhum laudo encontrado.':'Nenhum laudo ainda. Clique em “+ Novo laudo”.'}</td></tr>`}</tbody></table></div>`;
 }
 function laudoEditor(){
@@ -1493,7 +1493,7 @@ function laudoEditor(){
   const ta=(path,lbl,rows=3,ph='')=>`<div class="f w6"><label for="lf-${path}">${lbl}</label><textarea id="lf-${path}" data-lf="${path}" rows="${rows}" placeholder="${ph}" ${dis}>${esc(getPath(l,path)||'')}</textarea></div>`;
   const rm=(k,i)=>ro?'':`<button type="button" class="btn sm ghost danger" data-act="lau-rm" data-k="${k}" data-i="${i}" aria-label="Remover">✕</button>`;
   return `<div class="head"><div><h1>Laudo nº ${esc(l.numero)}</h1><p class="sub">${l._novo?'Novo laudo, ainda não salvo.':esc(l.assunto)+' · '+fmtD(l.data)}</p></div>
-   <div class="tools"><button class="btn" data-act="lau-back">← Voltar</button>${l._novo?'':'<button class="btn" data-act="lau-print-cur">Imprimir / PDF</button>'}<button class="btn pri" data-act="lau-save">Salvar</button></div></div>
+   <div class="tools"><button class="btn" data-act="lau-back">← Voltar</button>${l._novo||ro?'':'<button class="btn danger" data-act="lau-del">Excluir</button>'}${l._novo?'':'<button class="btn" data-act="lau-print-cur">Imprimir / PDF</button>'}<button class="btn pri" data-act="lau-save">Salvar</button></div></div>
   <div class="panel" style="margin-bottom:16px"><h2>Identificação</h2><div class="form">
     ${inp('assunto','Assunto (aparece abaixo de “LAUDO TÉCNICO”)','w6','placeholder="Pré-diagnóstico: sistema de repulsão acionado direto"')}
     <div class="f w3"><label for="lf-cli">Cliente</label><select id="lf-cli" data-lf="clienteId" ${dis}><option value="">— digitar abaixo —</option>${cliOpts(l.clienteId)}</select></div>
@@ -1576,6 +1576,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]
     case 'lau-fdel':{const l=UI.laudo.edit,i=+b.dataset.i,f=l.fotos[i];confirmBox('Remover foto','Remover esta foto do laudo?','Remover',async()=>{await guard(S.db.doc('laudofotos/'+f.id).delete());l.fotos.splice(i,1);UI.laudo.dirty=true;if(!l._novo)await laudoSalvar(true);else render()});break}
     case 'lau-print':laudoImprimir(abrir(find(b.dataset.id)));break;
     case 'lau-print-cur':laudoImprimir(UI.laudo.edit);break;
+    case 'lau-del-list':{const l=find(b.dataset.id);if(!l)break;confirmBox('Excluir laudo',`Excluir o laudo nº ${esc(l.numero)}${l.veiculo&&l.veiculo.placa?' ('+esc(placaFmt(l.veiculo.placa))+')':''}${(l.fotos||[]).length?' e as fotos dele':''}? Isso não pode ser desfeito.`,'Excluir',async()=>{await guard((async()=>{for(const f of l.fotos||[])await S.db.doc('laudofotos/'+f.id).delete();await S.db.doc('laudos/'+l.id).delete()})(),'Laudo excluído')});break}
     case 'lau-del':{const l=UI.laudo.edit;confirmBox('Excluir laudo',`Excluir o laudo nº ${esc(l.numero)}${(l.fotos||[]).length?' e as fotos dele':''}? Isso não pode ser desfeito.`,'Excluir',async()=>{const ok=await guard((async()=>{for(const f of l.fotos||[])await S.db.doc('laudofotos/'+f.id).delete();await S.db.doc('laudos/'+l.id).delete()})(),'Laudo excluído');if(ok){UI.laudo.edit=null;render()}});break}
   }});
 
