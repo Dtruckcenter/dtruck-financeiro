@@ -152,7 +152,7 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
-main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
+main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-del],main.ro [data-act=os-del-list],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
 .nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
 .seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .seltab button{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
@@ -282,7 +282,10 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
 /* impressão: só o documento */
 #print-root{display:none}
 @media print{
-  body>*:not(#print-root){display:none!important}
+  body.imprimindo>*:not(#print-root){display:none!important}
+  body:not(.imprimindo) #print-root{display:none!important}
+  body:not(.imprimindo) .rail,body:not(.imprimindo) #modal-root,body:not(.imprimindo) .toast{display:none!important}
+  body:not(.imprimindo) .app{display:block}
   html,body{background:#fff!important}
   :root{padding:0!important}
   #print-root{display:block!important;color:#1d2b38;font:9.5pt/1.55 "Open Sans",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1289,12 +1292,19 @@ function cliTable(){
 const EMPRESA={nome:'DTRUCK COMERCIO DE PEÇAS LTDA',cnpj:'53.995.291/0001-61',email:'DTRUCKCENTER.CONTRATOS@GMAIL.COM'};
 function cabecalhoDtruck(){const logo=document.querySelector('.brand .logo').src;
   return `<header class="pr-band"><img src="${logo}" alt="Dtruck Center"><div><b>OFICINA DE CAMINHÕES E AUTOPEÇAS</b><span>Brasília • DF</span></div></header>`}
-function imprimir(tipo,corpo){
+function montarImpressao(tipo,corpo){
   let r=$('#print-root');if(!r){r=document.createElement('div');r.id='print-root';document.body.appendChild(r)}
-  r.className='pr-'+tipo;r.innerHTML=`<div class="pr">${cabecalhoDtruck()}${corpo}</div>`;
+  r.className='pr-'+tipo;r.innerHTML=`<div class="pr">${cabecalhoDtruck()}${corpo}</div>`;document.body.classList.add('imprimindo');return r}
+UI.soMontar=false;
+function imprimir(tipo,corpo){
+  const r=montarImpressao(tipo,corpo);if(UI.soMontar)return;
   const imgs=[...r.querySelectorAll('img')];
   Promise.all(imgs.map(i=>i.complete?1:new Promise(z=>{i.onload=i.onerror=z}))).then(()=>setTimeout(()=>window.print(),80));
 }
+// Ctrl+P com uma OS ou um laudo aberto também sai no timbrado; nas outras telas imprime a própria tela
+window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('imprimindo'))return;
+  UI.soMontar=true;try{if(UI.view==='os'&&UI.os.edit)osImprimir(osLimpo(UI.os.edit));else if(UI.view==='laudos'&&UI.laudo.edit)laudoImprimir(UI.laudo.edit)}finally{UI.soMontar=false}});
+window.addEventListener('afterprint',()=>document.body.classList.remove('imprimindo'));
 
 // ---------- Ordens de serviço ----------
 const OS_ST=[['aberta','Aguardando','pend'],['andamento','Em serviço','in'],['pecas','Aguardando peças','pend'],['pronta','Pronta p/ retirada','ok'],['entregue','Entregue','info'],['cancelada','Cancelada','late']];
@@ -1342,7 +1352,7 @@ function osTabela(){
     <td><b>${esc(placaFmt(v.placa))||'—'}</b><div class="hint">${esc([v.marca,v.modelo,v.ano].filter(Boolean).join(' '))}${v.frota?' · frota '+esc(v.frota):''}</div></td>
     <td>${esc(o.clienteNome)||'<span class="muted">—</span>'}</td><td style="max-width:240px"><div class="hint" style="color:var(--ink)">${esc(String(o.relato||o.diagnostico||'').slice(0,90))||'—'}</div></td>
     <td>${osPill(o)}${o.faturado?' <span class="pill ok">Faturada</span>':''}</td><td>${o.saida?dtBR(o.saida):'<span class="muted">no pátio</span>'}</td>
-    <td class="num"><b>${fmt(t.total)}</b></td><td><div class="act"><button class="btn sm" data-act="os-open" data-id="${o.id}">Abrir</button><button class="btn sm ghost" data-act="os-print" data-id="${o.id}">Imprimir</button></div></td></tr>`}).join('')
+    <td class="num"><b>${fmt(t.total)}</b></td><td><div class="act"><button class="btn sm" data-act="os-open" data-id="${o.id}">Abrir</button><button class="btn sm ghost" data-act="os-print" data-id="${o.id}">Imprimir</button>${can('os','editar')?`<button class="btn sm ghost danger" data-act="os-del-list" data-id="${o.id}">Excluir</button>`:''}</div></td></tr>`}).join('')
   :`<tr><td colspan="9" class="empty">${S.os.length?'Nenhuma OS nesta situação.':'Nenhuma ordem de serviço ainda. Clique em “+ Nova OS” quando um caminhão chegar.'}</td></tr>`}</tbody></table></div>`;
 }
 function osNova(pre){
@@ -1356,7 +1366,7 @@ function osEditor(){
   const inp=(path,lbl,cls='',type='text',extra='')=>`<div class="f ${cls}"><label for="osf-${path}">${lbl}</label><input id="osf-${path}" type="${type}" data-osf="${path}" value="${esc(getPath(o,path)??'')}" ${extra} ${ro?'disabled':''}></div>`;
   const pecaOpts=sel=>S.pecas.slice().sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))).map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.codigo)} · ${esc(p.descricao)} (${+p.estoque||0} un)</option>`).join('');
   return `<div class="head"><div><h1>OS ${esc(o.numero)} ${osPill(o)}${fat?' <span class="pill ok">Faturada</span>':''}</h1><p class="sub">${o._novo?'Nova ordem de serviço, ainda não salva.':'Entrada em '+dtBR(o.entrada)+(o.saida?' · saída em '+dtBR(o.saida):'')}</p></div>
-    <div class="tools"><button class="btn" data-act="os-back">← Voltar</button>${!o._novo?'<button class="btn" data-act="os-print-cur">Imprimir</button><button class="btn" data-act="os-laudo">Gerar laudo</button>':''}<button class="btn pri" data-act="os-save">Salvar</button></div></div>
+    <div class="tools"><button class="btn" data-act="os-back">← Voltar</button>${!o._novo&&!ro?'<button class="btn danger" data-act="os-del">Excluir</button>':''}${!o._novo?'<button class="btn" data-act="os-print-cur">Imprimir</button><button class="btn" data-act="os-laudo">Gerar laudo</button>':''}<button class="btn pri" data-act="os-save">Salvar</button></div></div>
   <div class="osgrid">
    <div class="panel"><h2>Caminhão e cliente</h2><div class="form">
      <div class="f w4"><label for="osf-cli">Cliente</label><div style="display:flex;gap:6px"><select id="osf-cli" data-osf="clienteId" style="flex:1;min-width:0" ${ro?'disabled':''}><option value="">— selecione —</option>${cliOpts(o.clienteId)}</select><button type="button" class="btn sm" data-act="os-newcli" ${ro?'hidden':''}>+ Novo</button></div></div>
@@ -1393,7 +1403,7 @@ function osEditor(){
      <div style="margin-top:14px">${fat?`<p class="hint" style="margin:0 0 8px">Faturada em ${fmtD(o.faturado.em)} · ${(o.faturado.lancIds||[]).length} parcela(s) em <a href="#receber">Contas a receber</a>.</p>${ro?'':'<button type="button" class="btn danger" data-act="os-unfat">Desfazer faturamento</button>'}`:(o._novo||ro?'<p class="hint">Salve a OS para poder faturar.</p>':'<button type="button" class="btn pri" data-act="os-fat">Faturar OS (gerar contas a receber)</button>')}</div>
    </div>
   </div>
-  ${!o._novo&&!ro&&!fat?'<p style="margin-top:16px"><button type="button" class="btn ghost danger" data-act="os-del">Excluir esta OS</button></p>':''}`;
+`;
 }
 function osTotHtml(o){const t=osTot(o);return `<div class="li"><span>Serviços</span><span class="num">${fmt(t.sv)}</span></div><div class="li"><span>Peças</span><span class="num">${fmt(t.pc)}</span></div>${t.de?`<div class="li"><span>Desconto</span><span class="num neg">−${fmt(t.de)}</span></div>`:''}<div class="li" style="font-size:18px"><b>Total</b><b class="num">${fmt(t.total)}</b></div>`}
 function osLimpo(o){const c=JSON.parse(JSON.stringify(o));delete c.id;delete c._novo;c.veiculo=c.veiculo||{};c.veiculo.placa=placaFmt(c.veiculo.placa);c.veiculo.chassi=String(c.veiculo.chassi||'').toUpperCase();
@@ -1434,6 +1444,13 @@ async function osDesfaturar(){const o=UI.os.edit,f=o.faturado;const pagos=(f.lan
     const ok=await guard((async()=>{for(const id of f.lancIds||[])await S.db.doc('lancamentos/'+id).delete();
       for(const b of f.baixas||[]){const pc=pecaById(b.pecaId);if(pc)await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)+b.qtd})}
       await S.db.doc('os/'+o.id).update({faturado:null});UI.os.edit.faturado=null})(),'Faturamento desfeito');if(ok)render()})}
+function osExcluir(o,noEditor){if(!o)return;const f=o.faturado;
+  const pagos=f?(f.lancIds||[]).filter(id=>S.lancs.find(l=>l.id===id&&l.pago)).length:0;
+  if(pagos){toast(`A OS ${o.numero} tem ${pagos} parcela(s) já recebida(s). Estorne o recebimento em Contas a receber antes de excluir.`);return}
+  confirmBox('Excluir OS',`Excluir a OS ${esc(o.numero)}${o.veiculo&&o.veiculo.placa?' ('+esc(placaFmt(o.veiculo.placa))+')':''}?${f?' As parcelas em aberto em Contas a receber serão apagadas e as peças voltam para o estoque.':''} Isso não pode ser desfeito.`,'Excluir',async()=>{
+    const ok=await guard((async()=>{if(f){for(const id of f.lancIds||[])await S.db.doc('lancamentos/'+id).delete();
+      for(const bx of f.baixas||[]){const pc=pecaById(bx.pecaId);if(pc)await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)+bx.qtd})}}
+      await S.db.doc('os/'+o.id).delete()})(),'OS excluída');if(ok&&noEditor){UI.os.edit=null;UI.os.dirty=false}if(ok)render()})}
 function osImprimir(o){const v=o.veiculo||{},t=osTot(o),cl=S.clientes.find(c=>c.id===o.clienteId)||{};
   imprimir('os',`<h1 class="pr-title">ORDEM DE SERVIÇO</h1><p class="pr-sub">OS nº ${esc(o.numero)}</p>
   <div class="pr-row"><div class="pr-box"><h4>Cliente</h4><b>${esc(o.clienteNome||cl.nome||'—')}</b><div>${esc(cl.documento||'')}${cl.telefone?' · '+esc(cl.telefone):''}</div><div>${esc(endLinha(cl))}</div></div>
@@ -1463,7 +1480,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]
     case 'os-newcli':UI.cliCb=id=>{if(UI.os.edit){UI.os.edit.clienteId=id;UI.os.dirty=true;setTimeout(render,300)}};cliForm({});break;
     case 'os-laudo':{const o=UI.os.edit,cl=S.clientes.find(c=>c.id===o.clienteId)||{};laudoNovo({clienteId:o.clienteId,clienteNome:cl.fantasia||cl.nome||o.clienteNome||'',clienteDoc:cl.documento||'',osId:o.id,relato:o.relato||'',
       veiculo:{descricao:[o.veiculo.marca,o.veiculo.modelo].filter(Boolean).join(' '),frota:o.veiculo.frota||'',placa:o.veiculo.placa||'',km:o.veiculo.km||''}});break}
-    case 'os-del':confirmBox('Excluir OS',`Excluir a OS ${esc(UI.os.edit.numero)}? Isso não pode ser desfeito.`,'Excluir',async()=>{if(await guard(S.db.doc('os/'+UI.os.edit.id).delete(),'OS excluída')){UI.os.edit=null;render()}});break;
+    case 'os-del':osExcluir(S.os.find(x=>x.id===UI.os.edit.id)||UI.os.edit,true);break;
+    case 'os-del-list':osExcluir(find(b.dataset.id),false);break;
   }});
 
 // ---------- Laudos técnicos (modelo Dtruck: pré-diagnóstico) ----------
