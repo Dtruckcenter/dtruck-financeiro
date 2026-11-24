@@ -1,9 +1,11 @@
 name: Notas da Receita (DF-e)
 
 # Baixa de hora em hora as NF-e emitidas contra o CNPJ da Dtruck e envia ao sistema.
+# PAUSADO a pedido da Dtruck enquanto o sistema não entra em uso.
+# Para religar a consulta de hora em hora, remova o "#" das duas linhas abaixo.
 on:
-  schedule:
-    - cron: "17 * * * *"
+  # schedule:
+  #   - cron: "17 * * * *"
   workflow_dispatch: {}
 
 concurrency:
