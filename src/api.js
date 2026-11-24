@@ -240,6 +240,13 @@ export async function onRequest({ request, env, params }) {
 
   if (route === 'me' && method === 'GET') return json({ email: me.email, name: me.name, role: me.role, mustChange: me.mustChange });
 
+  // Token do robô, para o administrador copiar e colar no GitHub
+  if (route === 'robo-token' && method === 'GET') {
+    if (me.role !== 'admin' || me.mustChange) return fail(403, 'Só administradores');
+    if (!env.DFE_TOKEN) return fail(404, 'Token do robô não configurado no servidor');
+    return json({ token: env.DFE_TOKEN });
+  }
+
   if (route === 'password' && method === 'POST') {
     const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
     const u = await db.prepare(`SELECT * FROM users WHERE email = ?1`).bind(me.email).first();

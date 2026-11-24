@@ -1019,6 +1019,7 @@ function vEntrada(){
   const M=UI.ent.msg;
   const msgCls={ok:'background:var(--pos-soft);border-color:var(--pos)',neg:'background:var(--neg-soft);border-color:var(--neg)',pend:''};
   return `<div class="head"><div><h1>Entrada de mercadoria</h1><p class="sub">Notas que os fornecedores emitiram contra o CNPJ da Dtruck, baixadas da Receita de hora em hora com o certificado digital.</p></div></div>
+  ${certPanel()}
   <div class="panel" style="margin-bottom:16px">
     <label for="ent-chave" style="font-weight:700;display:block;margin-bottom:8px">Bipe o código de barras do DANFE ou digite a chave de acesso</label>
     <input id="ent-chave" inputmode="numeric" autocomplete="off" placeholder="44 números da chave de acesso" style="width:100%;font-size:18px;padding:12px 14px;font-family:var(--f-mono);letter-spacing:.04em">
@@ -1036,6 +1037,54 @@ function vEntrada(){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;
   if(b.dataset.act==='ent-dar')darEntrada(b.dataset.id);
   if(b.dataset.act==='ent-ok'){UI.ent.msg=null;render()}});
+
+
+// ---------- Ajuda para configurar o certificado no GitHub (tudo acontece no navegador) ----------
+function loadForge(){return new Promise(r=>{if(window.forge)return r(true);const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js';s.onload=()=>r(true);s.onerror=()=>r(false);document.head.appendChild(s)})}
+async function copiar(txt,okMsg,fallbackEl){try{await navigator.clipboard.writeText(txt);toast(okMsg)}catch(e){if(fallbackEl){fallbackEl.hidden=false;fallbackEl.value=txt;fallbackEl.select()}toast('Selecione o texto destacado e copie com Ctrl+C.')}}
+function certPanel(){
+  const me=DtruckAPI.me()||{};if(me.role!=='admin')return '';
+  const st=S.sys.find(x=>x.id==='dfe');
+  return `<details class="panel" id="cert-box" style="margin-bottom:16px" ${st&&st.ok?'':'open'}><summary style="cursor:pointer;font-weight:700">Configurar o robô da Receita (certificado digital)</summary>
+  <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
+    <p class="hint" style="margin:0">O robô precisa de 3 informações guardadas no cofre do GitHub. Aqui você prepara cada uma e cola lá. <b>O certificado não sai do seu computador</b>: o navegador só o converte em texto.</p>
+    <div><b>1. Abra o cofre do GitHub</b> em outra aba: <a href="https://github.com/Dtruckcenter/dtruck-financeiro/settings/secrets/actions/new" target="_blank" rel="noopener">github.com/Dtruckcenter/dtruck-financeiro → New secret</a>. Para cada item abaixo: em <b>Name</b> digite o nome em destaque, em <b>Secret</b> cole (Ctrl+V) e clique em <b>Add secret</b>.</div>
+    <div class="form" style="align-items:end">
+      <div class="f w6"><b>2. CERT_PFX_BASE64</b> e <b>CERT_PASSWORD</b>: escolha o arquivo do certificado (.pfx) e digite a senha dele.</div>
+      <div class="f w4"><label for="cert-file">Arquivo do certificado (.pfx ou .p12)</label><input type="file" id="cert-file" accept=".pfx,.p12,application/x-pkcs12"></div>
+      <div class="f w2"><label for="cert-pass">Senha do certificado</label><input type="password" id="cert-pass" autocomplete="off"></div>
+      <div class="f w6"><button type="button" class="btn pri" data-act="cert-check" style="justify-content:center">Conferir certificado</button></div>
+      <div class="f w6" id="cert-res" hidden></div>
+      <textarea id="cert-fallback" class="f w6" hidden readonly rows="3"></textarea>
+    </div>
+    <div><b>3. DFE_TOKEN</b>: <button type="button" class="btn sm" data-act="cert-token">Copiar DFE_TOKEN</button> e cole no GitHub com o nome <b>DFE_TOKEN</b>.</div>
+    <div><b>4. Rode a primeira consulta:</b> <a href="https://github.com/Dtruckcenter/dtruck-financeiro/actions/workflows/sefaz-dfe.yml" target="_blank" rel="noopener">Actions → Notas da Receita (DF-e)</a> → botão <b>Run workflow</b> → <b>Run workflow</b>. Em 1 a 2 minutos o resultado aparece nesta tela.</div>
+  </div></details>`;
+}
+UI.cert={b64:'',pass:''};
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;
+  if(b.dataset.act==='cert-check'){
+    const f=$('#cert-file').files[0], pass=$('#cert-pass').value, out=$('#cert-res');
+    if(!f){toast('Escolha o arquivo do certificado.');return}
+    const bytes=new Uint8Array(await f.arrayBuffer());let bin='';for(let i=0;i<bytes.length;i+=8192)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+    UI.cert={b64:btoa(bin),pass};
+    let info='';
+    if(await loadForge()){
+      try{const p12=forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(bin),false,pass);
+        const certs=(p12.getBags({bagType:forge.pki.oids.certBag})[forge.pki.oids.certBag]||[]).map(x=>x.cert);
+        const keyOk=((p12.getBags({bagType:forge.pki.oids.pkcs8ShroudedKeyBag})[forge.pki.oids.pkcs8ShroudedKeyBag]||[]).length+(p12.getBags({bagType:forge.pki.oids.keyBag})[forge.pki.oids.keyBag]||[]).length)>0;
+        const c=certs.find(x=>!(x.extensions||[]).some(ex=>ex.name==='basicConstraints'&&ex.cA))||certs[0];
+        const cn=c?(c.subject.getField('CN')||{}).value||'':'', ate=c?c.validity.notAfter:null, dias=ate?Math.floor((ate-Date.now())/864e5):0;
+        const cnpjOk=digits(cn).includes(digits(S.config.cnpj)||DTRUCK_CNPJ);
+        info=`<div class="banner" style="background:var(--pos-soft);border-color:var(--pos);margin:0;flex-direction:column;align-items:flex-start"><b>Senha correta.</b><span>Certificado: ${esc(cn)}</span><span>Válido até ${ate?ate.toLocaleDateString('pt-BR'):'—'} (${dias} dias)${dias<30?' <b class="neg">— vence em breve</b>':''}</span>${keyOk?'':'<span class="neg">Atenção: este arquivo não tem a chave privada. Exporte o certificado de novo marcando “exportar a chave privada”.</span>'}${cnpjOk?'':'<span class="neg">Atenção: o CNPJ deste certificado não é o da Dtruck.</span>'}</div>`;
+      }catch(x){out.hidden=false;out.innerHTML='<div class="banner" style="background:var(--neg-soft);border-color:var(--neg);margin:0">Não consegui abrir o certificado: a <b>senha está errada</b> ou o arquivo não é um certificado A1 (.pfx). Confira e tente de novo.</div>';return}
+    }
+    out.hidden=false;out.innerHTML=info+`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><button type="button" class="btn pri" data-act="cert-copy-pfx">Copiar CERT_PFX_BASE64</button><button type="button" class="btn" data-act="cert-copy-pass">Copiar CERT_PASSWORD</button></div><p class="hint" style="margin:8px 0 0">Copie um, cole no GitHub, volte aqui e copie o outro.</p>`;
+  }
+  if(b.dataset.act==='cert-copy-pfx')copiar(UI.cert.b64,'CERT_PFX_BASE64 copiado. Cole no GitHub.',$('#cert-fallback'));
+  if(b.dataset.act==='cert-copy-pass')copiar(UI.cert.pass,'CERT_PASSWORD copiado. Cole no GitHub.',$('#cert-fallback'));
+  if(b.dataset.act==='cert-token'){try{const t=(await DtruckAPI.roboToken()).token;copiar(t,'DFE_TOKEN copiado. Cole no GitHub.',$('#cert-fallback'))}catch(x){toast(x.message||'Não consegui buscar o token.')}}
+});
 
 // ---------- Login, senha e usuários ----------
 function genPass(){const a='abcdefghjkmnpqrstuvwxyz',A='ABCDEFGHJKLMNPQRSTUVWXYZ',d='23456789';const r=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;
@@ -1166,7 +1215,8 @@ window.addEventListener('hashchange',route);
 
 // ---------- Boot ----------
 let rtimer;
-function rerender(){clearTimeout(rtimer);rtimer=setTimeout(()=>{if(!$('#ov'))render();else pendingRender=true},40)}
+const certBusy=()=>{const f=$('#cert-file'),box=$('#cert-box');return !!(f&&(f.files.length||$('#cert-pass').value||(box&&box.contains(document.activeElement))))};
+function rerender(){clearTimeout(rtimer);rtimer=setTimeout(()=>{if(!$('#ov')&&!certBusy())render();else pendingRender=true},40)}
 let pendingRender=false;
 new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;render()}}).observe($('#modal-root'),{childList:true});
 (async()=>{
