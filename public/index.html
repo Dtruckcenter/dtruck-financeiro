@@ -444,6 +444,8 @@ async function guard(p,ok){try{await p;if(ok)toast(ok);return true}catch(e){
 // ---------- Dados derivados ----------
 const cliNome = id=>S.clientes.find(c=>c.id===id)?.nome||'';
 const pecaById = id=>S.pecas.find(p=>p.id===id);
+// só conta como estoque baixo quem tem estoque mínimo definido
+const estoqueBaixo = p=>(+p.estoqueMin||0)>0&&(+p.estoque||0)<=(+p.estoqueMin||0);
 const hasExamples = ()=>S.clientes.some(x=>x.exemplo)||S.pecas.some(x=>x.exemplo)||S.lancs.some(x=>x.exemplo);
 
 function groupSums(list){
@@ -521,7 +523,7 @@ function vPainel(){
   // top clientes no mês
   const byCli={};list.filter(l=>l.tipo==='entrada'&&l.clienteId).forEach(l=>byCli[l.clienteId]=(byCli[l.clienteId]||0)+(+l.valor));
   const clis=Object.entries(byCli).sort((a,b)=>b[1]-a[1]).slice(0,5);const clmax=clis[0]?.[1]||1;
-  const baixo=S.pecas.filter(p=>(+p.estoque||0)<=(+p.estoqueMin||0)).sort((a,b)=>(a.estoque-a.estoqueMin)-(b.estoque-b.estoqueMin)).slice(0,8);
+  const baixo=S.pecas.filter(p=>estoqueBaixo(p)).sort((a,b)=>((+a.estoque||0)-(+a.estoqueMin||0))-((+b.estoque||0)-(+b.estoqueMin||0))).slice(0,8);
   const venc=pend.slice().sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))).slice(0,8);
   return `
   <div class="head"><div><h1>Painel</h1><p class="sub">Resumo de ${mesLabel(ym)} · regime de competência</p></div>
@@ -541,7 +543,7 @@ function vPainel(){
   <div class="three">
     <div class="panel"><h2>Próximos vencimentos</h2>${venc.length?`<div class="list">${venc.map(l=>`<div class="li"><span class="t">${esc(l.descricao)}</span><span class="num ${l.tipo==='entrada'?'pos':'neg'}">${l.tipo==='entrada'?'+':'−'}${fmt(l.valor)}</span><span class="m">${fmtD(l.data)} · ${statusPill(l)}</span><span><button class="btn sm" data-act="pay" data-id="${l.id}">${l.tipo==='entrada'?'Receber':'Pagar'}</button></span></div>`).join('')}</div>`:'<p class="empty">Nenhuma conta em aberto.</p>'}</div>
     <div class="panel"><h2>Melhores clientes do mês</h2>${clis.length?`<div class="bars">${clis.map(([c,v])=>`<div class="bar-row"><span>${esc(cliNome(c)||'Cliente removido')}</span><span class="num">${fmt(v)}</span><div class="bar-track"><div class="bar-fill alt" style="width:${v/clmax*100}%"></div></div></div>`).join('')}</div>`:'<p class="empty">Nenhuma venda com cliente vinculado neste mês.</p>'}</div>
-    <div class="panel"><h2>Estoque baixo</h2>${baixo.length?`<div class="list">${baixo.map(p=>`<div class="li"><span class="t">${esc(p.descricao)}</span><span class="num ${(+p.estoque)<=0?'neg':''}">${+p.estoque||0} un</span><span class="m">${esc(p.codigo)} · mínimo ${+p.estoqueMin||0}</span></div>`).join('')}</div>`:'<p class="empty">Todos os produtos acima do estoque mínimo.</p>'}</div>
+    <div class="panel"><h2>Estoque baixo</h2>${baixo.length?`<div class="list">${baixo.map(p=>`<div class="li"><span class="t">${esc(p.descricao)}</span><span class="num ${(+p.estoque)<=0?'neg':''}">${+p.estoque||0} un</span><span class="m">${esc(p.codigo)} · mínimo ${+p.estoqueMin||0}</span></div>`).join('')}</div>`:'<p class="empty">Nenhum produto abaixo do estoque mínimo.</p>'}</div>
   </div>`;
 }
 
@@ -658,25 +660,30 @@ function vClientes(){
   <div class="filters"><input type="search" id="cq" placeholder="Buscar por nome, CPF/CNPJ, cidade ou telefone" value="${esc(UI.cq)}"></div><div id="ct">${cliTable()}</div>`;
 }
 function vPecas(){
-  afterHooks.push(()=>{let t;$('#pq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{UI.pq=e.target.value;$('#ptb').innerHTML=pecaTable()},180)};$('#pf').onchange=e=>{UI.pf=e.target.value;$('#ptb').innerHTML=pecaTable()}});
+  afterHooks.push(()=>{let t;$('#pq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{UI.pq=e.target.value;UI.plim=100;$('#ptb').innerHTML=pecaTable()},180)};$('#pf').onchange=e=>{UI.pf=e.target.value;UI.plim=100;$('#ptb').innerHTML=pecaTable()}});
   const valEst=sum(S.pecas,p=>(+p.custo||0)*(+p.estoque||0)), valVen=sum(S.pecas,p=>(+p.preco||0)*(+p.estoque||0));
-  const baixo=S.pecas.filter(p=>(+p.estoque||0)<=(+p.estoqueMin||0)).length;
+  const baixo=S.pecas.filter(p=>estoqueBaixo(p)).length;
   return `<div class="head"><div><h1>Produtos</h1><p class="sub">Catálogo e estoque. Vendas e compras lançadas com produto ajustam a quantidade automaticamente.</p></div><div class="tools"><button class="btn pri" data-act="new-peca">+ Novo produto</button></div></div>
   <div class="kpis"><div class="kpi"><span class="lbl">Itens cadastrados</span><span class="val">${S.pecas.length}</span></div><div class="kpi"><span class="lbl">Estoque a custo</span><span class="val">${fmt(valEst)}</span></div><div class="kpi"><span class="lbl">Estoque a preço de venda</span><span class="val">${fmt(valVen)}</span></div><div class="kpi"><span class="lbl">Abaixo do mínimo</span><span class="val ${baixo?'neg':''}">${baixo}</span></div></div>
-  <div class="filters"><input type="search" id="pq" placeholder="Buscar código, descrição, marca ou aplicação" value="${esc(UI.pq)}"><select id="pf" aria-label="Filtro de estoque"><option value="">Todo o estoque</option><option value="baixo" ${UI.pf==='baixo'?'selected':''}>Só abaixo do mínimo</option></select></div>
+  <div class="filters"><input type="search" id="pq" placeholder="Buscar código, descrição, marca, aplicação, NCM ou código de barras" value="${esc(UI.pq)}"><select id="pf" aria-label="Filtro de estoque"><option value="">Todo o estoque</option><option value="baixo" ${UI.pf==='baixo'?'selected':''}>Só abaixo do mínimo</option><option value="semcusto" ${UI.pf==='semcusto'?'selected':''}>Sem custo informado</option><option value="semvenda" ${UI.pf==='semvenda'?'selected':''}>Sem preço de venda</option></select></div>
   <div id="ptb">${pecaTable()}</div>`;
 }
+UI.plim=100;
 function pecaTable(){
-  const q=UI.pq.trim().toLowerCase();
-  const ls=S.pecas.filter(p=>(!q||[p.codigo,p.descricao,p.marca,p.aplicacao].join(' ').toLowerCase().includes(q))&&(UI.pf!=='baixo'||(+p.estoque||0)<=(+p.estoqueMin||0))).sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo)));
-  return `<div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th>Marca</th><th>Aplicação</th><th class="num">Custo</th><th class="num">Preço venda</th><th class="num">Margem</th><th class="num">Estoque</th><th></th></tr></thead><tbody>
-  ${ls.length?ls.map(p=>{const e=+p.estoque||0, mn=+p.estoqueMin||0;const mg=(+p.preco)?((p.preco-p.custo)/p.preco):0;
-   return `<tr><td class="num" style="text-align:left"><b>${esc(p.codigo)}</b></td><td>${esc(p.descricao)}${p.exemplo?' <span class="pill ex">Exemplo</span>':''}</td><td>${esc(p.marca)||'—'}</td><td>${esc(p.aplicacao)||'—'}</td>
-   <td class="num">${fmt(p.custo)}</td><td class="num">${fmt(p.preco)}</td><td class="num">${(mg*100).toFixed(0)}%</td>
-   <td class="num"><span class="pill ${e<=0?'late':e<=mn?'pend':'ok'}">${e} un</span><div class="hint">mín. ${mn}</div></td>
+  const q=UI.pq.trim().toLowerCase(),qd=digits(q);
+  const ls=S.pecas.filter(p=>(!q||[p.codigo,p.descricao,p.marca,p.aplicacao].join(' ').toLowerCase().includes(q)||(qd.length>=4&&(String(p.ean||'').includes(qd)||String(p.ncm||'').startsWith(qd))))&&(UI.pf!=='baixo'||estoqueBaixo(p))&&(UI.pf!=='semcusto'||!(+p.custo))&&(UI.pf!=='semvenda'||!(+p.preco)))
+    .sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt'));
+  const vis=ls.slice(0,UI.plim);
+  return `<div class="summary"><span>${ls.length} produto(s)${ls.length>vis.length?` · mostrando ${vis.length}`:''}</span></div><div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th>NCM</th><th>Un</th><th class="num">Custo</th><th class="num">Preço venda</th><th class="num">Margem</th><th class="num">Estoque</th><th></th></tr></thead><tbody>
+  ${vis.length?vis.map(p=>{const e=+p.estoque||0, mn=+p.estoqueMin||0;const mg=(+p.preco&&+p.custo)?((p.preco-p.custo)/p.preco):null;
+   return `<tr><td class="num" style="text-align:left"><b>${esc(p.codigo)}</b></td><td>${esc(p.descricao)}${p.marca||p.aplicacao?`<div class="hint">${esc([p.marca,p.aplicacao].filter(Boolean).join(' · '))}</div>`:''}${p.ean?`<div class="hint">EAN ${esc(p.ean)}</div>`:''}</td><td class="hint">${esc(p.ncm||'—')}</td><td>${esc(p.unidade||'UN')}</td>
+   <td class="num">${+p.custo?fmt(p.custo):'<span class="muted">—</span>'}</td><td class="num">${+p.preco?fmt(p.preco):'<span class="muted">—</span>'}</td><td class="num ${mg!==null&&mg<0?'neg':''}">${mg===null?'<span class="muted">—</span>':(mg*100).toFixed(0)+'%'}</td>
+   <td class="num"><span class="pill ${mn>0?(e<=0?'late':e<=mn?'pend':'ok'):(e<0?'late':'info')}">${e} ${esc((p.unidade||'un').toLowerCase())}</span>${mn?`<div class="hint">mín. ${mn}</div>`:''}</td>
    <td><div class="act"><button class="btn sm ghost" data-act="edit-peca" data-id="${p.id}">Editar</button><button class="btn sm ghost danger" data-act="del-peca" data-id="${p.id}">Excluir</button></div></td></tr>`}).join('')
-  :`<tr><td colspan="9" class="empty">${S.pecas.length?'Nenhum produto encontrado.':'Nenhum produto ainda. Clique em “+ Novo produto”.'}</td></tr>`}</tbody></table></div>`;
+  :`<tr><td colspan="9" class="empty">${S.pecas.length?'Nenhum produto encontrado.':'Nenhum produto ainda. Clique em “+ Novo produto”.'}</td></tr>`}</tbody></table></div>
+  ${ls.length>vis.length?`<p style="text-align:center;margin-top:12px"><button class="btn" data-act="p-mais">Mostrar mais ${Math.min(100,ls.length-vis.length)}</button></p>`:''}`;
 }
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act="p-mais"]');if(!b)return;UI.plim+=100;$('#ptb').innerHTML=pecaTable()});
 
 // ---------- Modais ----------
 function openModal(html,onSubmit,onMount){
@@ -748,12 +755,19 @@ async function saveLanc(old,doc){
   return ok;
 }
 
+const UNIDADES=['UN','PC','JG','KIT','PAR','CJ','CX','KG','G','L','ML','M','M2','RL','GL','TB'];
+const ORIGENS=[['0','0 – Nacional'],['1','1 – Estrangeira (importação direta)'],['2','2 – Estrangeira (mercado interno)'],['3','3 – Nacional, conteúdo importado > 40%'],['4','4 – Nacional, processos básicos'],['5','5 – Nacional, conteúdo importado ≤ 40%'],['6','6 – Estrangeira sem similar (importação direta)'],['7','7 – Estrangeira sem similar (mercado interno)'],['8','8 – Nacional, conteúdo importado > 70%']];
 function pecaForm(p){
+  const un=p.unidade||'UN';
   openModal(`<h2>${p.id?'Editar produto':'Novo produto'}</h2><div class="form">
-   <div class="f w2"><label for="p-cod">Código</label><input id="p-cod" name="codigo" required value="${esc(p.codigo)}"></div>
+   <div class="f w2"><label for="p-cod">Código (SKU)</label><input id="p-cod" name="codigo" required value="${esc(p.codigo)}"></div>
    <div class="f w4"><label for="p-desc">Descrição</label><input id="p-desc" name="descricao" required value="${esc(p.descricao)}"></div>
-   <div class="f"><label for="p-mar">Marca</label><input id="p-mar" name="marca" value="${esc(p.marca)}"></div>
-   <div class="f"><label for="p-apl">Aplicação (modelos)</label><input id="p-apl" name="aplicacao" value="${esc(p.aplicacao)}" placeholder="Ex.: Scania R440, Volvo FH"></div>
+   <div class="f w2"><label for="p-mar">Marca</label><input id="p-mar" name="marca" value="${esc(p.marca)}"></div>
+   <div class="f w4"><label for="p-apl">Aplicação (modelos)</label><input id="p-apl" name="aplicacao" value="${esc(p.aplicacao)}" placeholder="Ex.: Scania R440, Volvo FH"></div>
+   <div class="f w1"><label for="p-un">Unidade</label><select id="p-un" name="unidade">${[...new Set([un,...UNIDADES])].map(u=>`<option ${u===un?'selected':''}>${esc(u)}</option>`).join('')}</select></div>
+   <div class="f w2"><label for="p-ncm">NCM</label><input id="p-ncm" name="ncm" value="${esc(p.ncm)}" inputmode="numeric" maxlength="10" placeholder="8 dígitos"></div>
+   <div class="f w3"><label for="p-ean">Código de barras (EAN)</label><input id="p-ean" name="ean" value="${esc(p.ean)}" inputmode="numeric"></div>
+   <div class="f w6"><label for="p-ori">Origem da mercadoria</label><select id="p-ori" name="origem">${ORIGENS.map(([k,l])=>`<option value="${k}" ${String(p.origem??'0')===k?'selected':''}>${l}</option>`).join('')}</select></div>
    <div class="f w2"><label for="p-cus">Custo (R$)</label><input id="p-cus" name="custo" type="number" step="0.01" min="0" value="${p.custo??''}"></div>
    <div class="f w2"><label for="p-pre">Preço de venda (R$)</label><input id="p-pre" name="preco" type="number" step="0.01" min="0" value="${p.preco??''}"></div>
    <div class="f w2"><label>Margem</label><input id="p-mg" disabled></div>
@@ -761,10 +775,13 @@ function pecaForm(p){
    <div class="f"><label for="p-min">Estoque mínimo</label><input id="p-min" name="estoqueMin" type="number" step="1" min="0" value="${p.estoqueMin??0}"></div>
   </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Salvar produto</button></div>`,async fd=>{
     if(!fd.codigo.trim()||!fd.descricao.trim()){toast('Informe código e descrição.');return false}
-    const d={codigo:fd.codigo.trim(),descricao:fd.descricao.trim(),marca:fd.marca.trim(),aplicacao:fd.aplicacao.trim(),custo:r2(+fd.custo||0),preco:r2(+fd.preco||0),estoque:parseInt(fd.estoque)||0,estoqueMin:parseInt(fd.estoqueMin)||0,exemplo:!!p.exemplo&&!!p.id,criadoEm:p.criadoEm||Date.now()};
+    const cod=fd.codigo.trim();if(S.pecas.some(x=>x.id!==p.id&&normCod(x.codigo)===normCod(cod))){toast('Já existe um produto com o código '+cod+'.');return false}
+    const ncm=digits(fd.ncm);if(ncm&&ncm.length!==8){toast('O NCM tem 8 dígitos.');return false}
+    const d={...p,codigo:cod,descricao:fd.descricao.trim(),marca:fd.marca.trim(),aplicacao:fd.aplicacao.trim(),unidade:fd.unidade,ncm,ean:digits(fd.ean),origem:fd.origem,
+      custo:r2(+fd.custo||0),preco:r2(+fd.preco||0),estoque:parseInt(fd.estoque)||0,estoqueMin:parseInt(fd.estoqueMin)||0,exemplo:false,criadoEm:p.criadoEm||Date.now()};delete d.id;
     const ref=p.id?S.db.doc('pecas/'+p.id):S.db.collection('pecas').doc();
     return guard(ref.set(d),p.id?'Produto atualizado':'Produto cadastrado');
-  },f=>{const u=()=>{const c=+$('#p-cus').value,v=+$('#p-pre').value;$('#p-mg').value=v?(((v-c)/v)*100).toFixed(1).replace('.',',')+'% · lucro '+fmt(v-c):'—'};$('#p-cus').oninput=u;$('#p-pre').oninput=u;u()});
+  },f=>{const u=()=>{const c=+$('#p-cus').value,v=+$('#p-pre').value;$('#p-mg').value=!c?'informe o custo':v?(((v-c)/v)*100).toFixed(1).replace('.',',')+'% · lucro '+fmt(v-c):'—'};$('#p-cus').oninput=u;$('#p-pre').oninput=u;u()});
 }
 
 // ---------- Importação de notas fiscais (NF-e, NFC-e, NFS-e) ----------
