@@ -180,7 +180,14 @@ async function main() {
   try { cert = lerCertificado(); }
   catch (e) { throw new Error(/password|MAC|Invalid/i.test(e.message) ? 'A senha do certificado (CERT_PASSWORD) não confere com o arquivo.' : 'Não consegui ler o certificado (CERT_PFX_BASE64): ' + e.message); }
   log(`Certificado válido até ${cert.validade} (${cert.dias} dias).`);
-  const api = (path, opts = {}) => fetch(API + path, { ...opts, headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json', ...(opts.headers || {}) } });
+  // Se o Cloudflare Access estiver na frente do sistema, o robô se identifica com um "service token" do Access
+  const accessHeaders = env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': env.CF_ACCESS_CLIENT_ID.trim(), 'CF-Access-Client-Secret': String(env.CF_ACCESS_CLIENT_SECRET || '').trim() } : {};
+  const api = async (path, opts = {}) => {
+    const r = await fetch(API + path, { ...opts, redirect: 'manual', headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json', ...accessHeaders, ...(opts.headers || {}) } });
+    if (r.status >= 300 && r.status < 400 || /text\/html/.test(r.headers.get('content-type') || ''))
+      throw new Error('O login do Cloudflare Access bloqueou o robô antes de chegar ao sistema. Libere o caminho /api/robo no Access ou configure CF_ACCESS_CLIENT_ID e CF_ACCESS_CLIENT_SECRET.');
+    return r;
+  };
   const er = await api('/api/robo/estado');
   if (!er.ok) throw new Error(`Sistema respondeu ${er.status} ao pedir o estado. Confira API_URL e DFE_TOKEN.`);
   const estado = await er.json();
@@ -241,8 +248,9 @@ main().catch(async e => {
   // avisa o sistema que a rodada falhou (sem mexer no NSU), para aparecer na tela de entrada
   try {
     if (API && env.DFE_TOKEN) {
-      const r = await fetch(API + '/api/robo/lote', { method: 'POST', headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json' }, body: JSON.stringify({ ok: false, status: 'Falha: ' + e.message }) });
-      log(r.ok ? 'Falha registrada no sistema.' : `O sistema recusou o aviso de falha (HTTP ${r.status})${r.status === 401 ? ': o DFE_TOKEN do GitHub não confere com o do sistema.' : '.'}`);
+      const ah = env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': env.CF_ACCESS_CLIENT_ID.trim(), 'CF-Access-Client-Secret': String(env.CF_ACCESS_CLIENT_SECRET || '').trim() } : {};
+      const r = await fetch(API + '/api/robo/lote', { method: 'POST', redirect: 'manual', headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json', ...ah }, body: JSON.stringify({ ok: false, status: 'Falha: ' + e.message }) });
+      log(r.ok && /json|^$/.test(r.headers.get('content-type') || '') ? 'Falha registrada no sistema.' : `O sistema recusou o aviso de falha (HTTP ${r.status})${r.status === 401 ? ': o DFE_TOKEN do GitHub não confere com o do sistema.' : '.'}`);
     }
   } catch (_) {}
 });

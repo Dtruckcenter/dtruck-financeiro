@@ -48,6 +48,8 @@ jobs:
           CERT_PFX_BASE64: ${{ secrets.CERT_PFX_BASE64 }}
           CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
           DFE_TOKEN: ${{ secrets.DFE_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           API_URL: ${{ vars.API_URL || 'https://dtruck-financeiro.dtruckcenter-contratos.workers.dev' }}
           DTRUCK_CNPJ: ${{ vars.DTRUCK_CNPJ || '53995291000161' }}
           DTRUCK_UF: ${{ vars.DTRUCK_UF || 'DF' }}
