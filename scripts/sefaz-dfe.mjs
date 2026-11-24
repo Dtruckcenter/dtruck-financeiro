@@ -171,9 +171,16 @@ async function main() {
   if (CNPJ.length !== 14) throw new Error('DTRUCK_CNPJ inválido.');
   if (!UF_COD) throw new Error('DTRUCK_UF inválida (use a sigla, ex.: RS).');
 
-  const cert = lerCertificado();
+  // Diagnóstico seguro: só tamanho e formato, nunca o conteúdo
+  const b64 = String(env.CERT_PFX_BASE64 || '').replace(/\s+/g, '');
+  const tok = String(env.DFE_TOKEN || '').trim();
+  log(`Conferência dos segredos: CERT_PFX_BASE64 com ${b64.length} caracteres${/^[A-Za-z0-9+/]+=*$/.test(b64) ? '' : ' (formato inválido)'}${b64.startsWith('MII') ? '' : ' (não parece um certificado .pfx)'}; DFE_TOKEN com ${tok.length} caracteres${/^[0-9a-f]{64}$/.test(tok) ? '' : ' (esperado: 64 letras e números)'}; CERT_PASSWORD ${env.CERT_PASSWORD ? 'preenchida' : 'vazia'}.`);
+  if (b64.length < 1000) throw new Error('O segredo CERT_PFX_BASE64 está curto demais para ser um certificado. Cole de novo o texto copiado pelo botão "Copiar CERT_PFX_BASE64" do sistema.');
+  let cert;
+  try { cert = lerCertificado(); }
+  catch (e) { throw new Error(/password|MAC|Invalid/i.test(e.message) ? 'A senha do certificado (CERT_PASSWORD) não confere com o arquivo.' : 'Não consegui ler o certificado (CERT_PFX_BASE64): ' + e.message); }
   log(`Certificado válido até ${cert.validade} (${cert.dias} dias).`);
-  const api = (path, opts = {}) => fetch(API + path, { ...opts, headers: { authorization: 'Bearer ' + env.DFE_TOKEN, 'content-type': 'application/json', ...(opts.headers || {}) } });
+  const api = (path, opts = {}) => fetch(API + path, { ...opts, headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json', ...(opts.headers || {}) } });
   const er = await api('/api/robo/estado');
   if (!er.ok) throw new Error(`Sistema respondeu ${er.status} ao pedir o estado. Confira API_URL e DFE_TOKEN.`);
   const estado = await er.json();
@@ -233,6 +240,9 @@ main().catch(async e => {
   falha(e.message);
   // avisa o sistema que a rodada falhou (sem mexer no NSU), para aparecer na tela de entrada
   try {
-    if (API && env.DFE_TOKEN) await fetch(API + '/api/robo/lote', { method: 'POST', headers: { authorization: 'Bearer ' + env.DFE_TOKEN, 'content-type': 'application/json' }, body: JSON.stringify({ ok: false, status: 'Falha: ' + e.message }) });
+    if (API && env.DFE_TOKEN) {
+      const r = await fetch(API + '/api/robo/lote', { method: 'POST', headers: { authorization: 'Bearer ' + String(env.DFE_TOKEN).trim(), 'content-type': 'application/json' }, body: JSON.stringify({ ok: false, status: 'Falha: ' + e.message }) });
+      log(r.ok ? 'Falha registrada no sistema.' : `O sistema recusou o aviso de falha (HTTP ${r.status})${r.status === 401 ? ': o DFE_TOKEN do GitHub não confere com o do sistema.' : '.'}`);
+    }
   } catch (_) {}
 });
