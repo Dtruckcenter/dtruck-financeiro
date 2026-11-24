@@ -6,13 +6,14 @@
 //   DFE_TOKEN      token do robô que consulta a Receita (GitHub Actions); sem ele as rotas /api/robo ficam desligadas
 // Binding D1: DB
 
-const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys']);
+const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys', 'os', 'laudos', 'laudofotos']);
+const FORA_DO_SYNC = new Set(['dfexml', 'laudofotos']);   // grandes: baixados só quando abertos
 const ADMIN_ONLY = new Set(['config']);
 const ROBOT_ONLY = new Set(['dfe', 'sys']);          // só o robô da Receita grava aqui
 const CHAVE_RE = /^\d{44}$/;
 const ROLES = new Set(['admin', 'usuario', 'operador', 'leitura']);
 // Módulos do sistema e o que cada nível libera. Nível: '' (sem acesso), 'ver' ou 'editar'.
-const MODULOS = ['painel', 'pagar', 'receber', 'lancamentos', 'notas', 'fluxo', 'dre', 'clientes', 'pecas', 'entrada'];
+const MODULOS = ['painel', 'pagar', 'receber', 'os', 'lancamentos', 'notas', 'fluxo', 'dre', 'clientes', 'pecas', 'entrada', 'laudos'];
 const SO_VER = new Set(['painel', 'fluxo', 'dre']);
 function permsDe(u) {
   if (u.role === 'admin') return Object.fromEntries(MODULOS.map(m => [m, SO_VER.has(m) ? 'ver' : 'editar']));
@@ -33,8 +34,10 @@ const editaAlgum = (me, ...mods) => mods.some(m => me.perms[m] === 'editar');
 function colecoesVisiveis(me) {
   const c = new Set(['config']);
   if (pode(me, 'painel', 'pagar', 'receber', 'lancamentos', 'fluxo', 'dre') || editaAlgum(me, 'notas')) c.add('lancamentos');
-  if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada')) c.add('clientes');
-  if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos')) c.add('pecas');
+  if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada', 'os', 'laudos')) c.add('clientes');
+  if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos', 'os')) c.add('pecas');
+  if (pode(me, 'os')) c.add('os');
+  if (pode(me, 'laudos')) c.add('laudos');
   if (pode(me, 'notas', 'entrada')) c.add('notas');
   if (pode(me, 'entrada')) { c.add('dfe'); c.add('dfefila'); c.add('sys'); }
   return c;
@@ -43,12 +46,16 @@ function colecoesVisiveis(me) {
 function podeGravar(me, col, dados) {
   if (me.role === 'admin') return true;
   switch (col) {
-    case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada');
-    case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos');
+    case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada', 'os', 'laudos');
+    case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos', 'os');
+    case 'os': return editaAlgum(me, 'os');
+    case 'laudos': case 'laudofotos': return editaAlgum(me, 'laudos');
     case 'notas': return editaAlgum(me, 'notas', 'entrada');
     case 'dfefila': return editaAlgum(me, 'entrada');
     case 'lancamentos':
       if (editaAlgum(me, 'lancamentos', 'notas')) return true;
+      // a OS fatura gerando contas a receber ligadas a ela
+      if (editaAlgum(me, 'os') && dados.every(d => !d || (d.osId && d.tipo === 'entrada'))) return true;
       return dados.every(d => !d || (d.tipo === 'saida' ? me.perms.pagar === 'editar' : d.tipo === 'entrada' ? me.perms.receber === 'editar' : false));
     default: return false;
   }
@@ -315,7 +322,7 @@ export async function onRequest({ request, env, params }) {
     const since = Math.max(0, parseInt(new URL(request.url).searchParams.get('since') || '0', 10) || 0);
     const LIMIT = 2000;
     const { results } = await db.prepare(
-      `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 AND col <> 'dfexml' ORDER BY seq LIMIT ?2`
+      `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 AND col NOT IN ('dfexml', 'laudofotos') ORDER BY seq LIMIT ?2`
     ).bind(since, LIMIT + 1).all();
     const more = results.length > LIMIT;
     const vis = colecoesVisiveis(me);
@@ -350,6 +357,16 @@ export async function onRequest({ request, env, params }) {
       return noContent();
     }
     return fail(405, 'Método não permitido');
+  }
+
+  // Leitura de um documento que fica fora da sincronização (fotos de laudo)
+  if (parts[0] === 'doc' && parts.length === 3 && method === 'GET') {
+    const [, col, id] = parts;
+    if (col !== 'laudofotos' || !ID_RE.test(id)) return fail(400, 'Caminho inválido');
+    if (!pode(me, 'laudos')) return fail(403, 'Sem permissão');
+    const row = await db.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
+    if (!row) return fail(404, 'Não encontrado');
+    return json(JSON.parse(row.data));
   }
 
   // XML completo de uma nota recebida pela Receita (fica fora da sincronização por ser grande)

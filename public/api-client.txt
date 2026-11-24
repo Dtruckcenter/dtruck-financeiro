@@ -123,6 +123,7 @@
     logout: () => call('POST', '/api/logout'),
     changePassword: (current, password) => call('POST', '/api/password', { current, password }),
     roboToken: () => call('GET', '/api/robo-token'),
+    getDoc: (col, id) => call('GET', '/api/doc/' + encodeURIComponent(col) + '/' + encodeURIComponent(id)),
     getXml: (chave) => call('GET', '/api/xml/' + encodeURIComponent(chave)),
     users: {
       list: () => call('GET', '/api/users'),
