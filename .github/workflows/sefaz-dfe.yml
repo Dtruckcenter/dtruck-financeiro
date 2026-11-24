@@ -50,5 +50,5 @@ jobs:
           DFE_TOKEN: ${{ secrets.DFE_TOKEN }}
           API_URL: ${{ vars.API_URL || 'https://dtruck-financeiro.dtruckcenter-contratos.workers.dev' }}
           DTRUCK_CNPJ: ${{ vars.DTRUCK_CNPJ || '53995291000161' }}
-          DTRUCK_UF: ${{ vars.DTRUCK_UF }}
+          DTRUCK_UF: ${{ vars.DTRUCK_UF || 'DF' }}
         run: node scripts/sefaz-dfe.mjs
