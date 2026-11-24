@@ -174,7 +174,7 @@ async function main() {
   // Diagnóstico seguro: só tamanho e formato, nunca o conteúdo
   const b64 = String(env.CERT_PFX_BASE64 || '').replace(/\s+/g, '');
   const tok = String(env.DFE_TOKEN || '').trim();
-  log(`Conferência dos segredos: CERT_PFX_BASE64 com ${b64.length} caracteres${/^[A-Za-z0-9+/]+=*$/.test(b64) ? '' : ' (formato inválido)'}${b64.startsWith('MII') ? '' : ' (não parece um certificado .pfx)'}; DFE_TOKEN com ${tok.length} caracteres${/^[0-9a-f]{64}$/.test(tok) ? '' : ' (esperado: 64 letras e números)'}; CERT_PASSWORD ${env.CERT_PASSWORD ? 'preenchida' : 'vazia'}.`);
+  log(`Conferência dos segredos: CERT_PFX_BASE64 com ${b64.length} caracteres${/^[A-Za-z0-9+/]+=*$/.test(b64) ? '' : ' (formato inválido)'}${/^MI[IA]/.test(b64) ? '' : ' (não parece um certificado .pfx)'}; DFE_TOKEN com ${tok.length} caracteres${/^[0-9a-f]{64}$/.test(tok) ? '' : ' (esperado: 64 letras e números)'}; CERT_PASSWORD ${env.CERT_PASSWORD ? 'preenchida' : 'vazia'}.`);
   if (b64.length < 1000) throw new Error('O segredo CERT_PFX_BASE64 está curto demais para ser um certificado. Cole de novo o texto copiado pelo botão "Copiar CERT_PFX_BASE64" do sistema.');
   let cert;
   try { cert = lerCertificado(); }
