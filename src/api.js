@@ -97,6 +97,15 @@ async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(SCHEMA.map(s => db.prepare(s)));
   try { await db.prepare(`ALTER TABLE users ADD COLUMN perms TEXT`).run(); } catch { /* coluna já existe */ }
+  await db.batch([
+    db.prepare(`CREATE TABLE IF NOT EXISTS numeracao (
+      tipo TEXT PRIMARY KEY, nome TEXT NOT NULL, prefixo TEXT NOT NULL DEFAULT '', com_ano INTEGER NOT NULL DEFAULT 0,
+      digitos INTEGER NOT NULL DEFAULT 4, reinicia_ano INTEGER NOT NULL DEFAULT 0, proximo INTEGER NOT NULL DEFAULT 1,
+      ano INTEGER NOT NULL DEFAULT 0, ultimo TEXT, ultimo_em INTEGER)`),
+    // padrões: OS 2026-0001 (recomeça a cada ano); laudo 006 (continua do laudo 005 feito antes do sistema)
+    db.prepare(`INSERT OR IGNORE INTO numeracao (tipo, nome, prefixo, com_ano, digitos, reinicia_ano, proximo, ano) VALUES ('os', 'Ordem de serviço', '', 1, 4, 1, 1, 0)`),
+    db.prepare(`INSERT OR IGNORE INTO numeracao (tipo, nome, prefixo, com_ano, digitos, reinicia_ano, proximo, ano) VALUES ('laudo', 'Laudo técnico', '', 0, 3, 0, 6, 0)`),
+  ]);
   schemaReady = true;
 }
 
@@ -376,6 +385,47 @@ export async function onRequest({ request, env, params }) {
     const row = await db.prepare(`SELECT data FROM docs WHERE col = 'dfexml' AND id = ?1 AND deleted = 0`).bind(parts[1]).first();
     if (!row) return fail(404, 'XML ainda não disponível');
     return json({ xml: JSON.parse(row.data).xml });
+  }
+
+  // ----- Numeração de documentos (OS, laudos…) -----
+  if (parts[0] === 'numeracao') {
+    const ano = new Date(Date.now() - 3 * 3600e3).getUTCFullYear();   // horário de Brasília
+    const formatar = (r, n, y) => [r.prefixo, r.com_ano ? String(y) : '', String(n).padStart(r.digitos, '0')].filter(Boolean).join('-');
+    if (parts.length === 1 && method === 'GET') {
+      const { results } = await db.prepare(`SELECT * FROM numeracao ORDER BY tipo`).all();
+      return json({ ano, tipos: results.map(r => {
+        const prox = r.reinicia_ano && r.ano && r.ano !== ano ? 1 : r.proximo;
+        return { ...r, com_ano: !!r.com_ano, reinicia_ano: !!r.reinicia_ano, exemplo: formatar(r, prox, ano), proximoEfetivo: prox };
+      }) });
+    }
+    const tipo = parts[1];
+    const modulo = { os: 'os', laudo: 'laudos' }[tipo];
+    if (!modulo) return fail(404, 'Tipo de documento desconhecido');
+    // próximo número: atômico, sem repetir mesmo com duas pessoas salvando juntas
+    if (parts.length === 3 && parts[2] === 'proximo' && method === 'POST') {
+      if (!editaAlgum(me, modulo) && me.role !== 'admin') return fail(403, 'Sem permissão');
+      const r = await db.prepare(
+        `UPDATE numeracao SET proximo = CASE WHEN reinicia_ano = 1 AND ano <> 0 AND ano <> ?1 THEN 2 ELSE proximo + 1 END,
+           ano = ?1, ultimo_em = ?2 WHERE tipo = ?3
+         RETURNING proximo - 1 AS n, prefixo, com_ano, digitos`
+      ).bind(ano, Date.now(), tipo).first();
+      if (!r) return fail(404, 'Numeração não configurada');
+      const numero = formatar(r, r.n, ano);
+      await db.prepare(`UPDATE numeracao SET ultimo = ?1 WHERE tipo = ?2`).bind(numero, tipo).run();
+      await audit(db, me.email, 'numero', 'numeracao', tipo, { numero });
+      return json({ numero });
+    }
+    if (parts.length === 2 && method === 'PUT') {
+      if (me.role !== 'admin') return fail(403, 'Só administradores alteram a numeração');
+      const b = await readJson(request); if (!b.body) return fail(400, 'Dados inválidos');
+      const x = b.body, prefixo = String(x.prefixo || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      const digitos = Math.min(8, Math.max(1, parseInt(x.digitos, 10) || 4)), proximo = Math.max(1, parseInt(x.proximo, 10) || 1);
+      await db.prepare(`UPDATE numeracao SET prefixo = ?1, com_ano = ?2, digitos = ?3, reinicia_ano = ?4, proximo = ?5, ano = ?6 WHERE tipo = ?7`)
+        .bind(prefixo, x.com_ano ? 1 : 0, digitos, x.reinicia_ano ? 1 : 0, proximo, ano, tipo).run();
+      await audit(db, me.email, 'config', 'numeracao', tipo, { prefixo, com_ano: !!x.com_ano, digitos, reinicia_ano: !!x.reinicia_ano, proximo });
+      return noContent();
+    }
+    return fail(405, 'Método não permitido');
   }
 
   // ----- Usuários (só administradores) -----
