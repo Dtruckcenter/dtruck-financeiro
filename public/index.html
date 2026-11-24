@@ -285,45 +285,45 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
   body>*:not(#print-root){display:none!important}
   html,body{background:#fff!important}
   :root{padding:0!important}
-  #print-root{display:block!important;color:#1f2a37;font:10.5pt/1.5 Calibri,"Segoe UI",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #print-root{display:block!important;color:#1d2b38;font:9.5pt/1.55 "Open Sans",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .pr-laudo .pr{page:laudo}.pr-os .pr{page:os}
 }
-@page{size:A4;margin:14mm 14mm 16mm}
-@page laudo{@bottom-center{content:"Dtruck Center  |  Laudo Técnico  |  Página " counter(page);font:8.5pt Calibri,Arial,sans-serif;color:#555}}
-@page os{@bottom-center{content:"DTRUCK COMERCIO DE PEÇAS LTDA  |  CNPJ 53.995.291/0001-61  |  Página " counter(page);font:8pt Calibri,Arial,sans-serif;color:#555}}
-.pr-band{display:flex;align-items:center;gap:20px;background:#1e2b3f;color:#fff;padding:14px 18px;margin-bottom:18px}
-.pr-logo{width:118px;height:118px;background:#0e1a2a;display:grid;place-items:center;padding:12px}
-.pr-logo img{width:100%;height:auto}
-.pr-band b{display:block;font-size:20pt;letter-spacing:.01em;line-height:1.1}
-.pr-band span{display:block;color:#8fc8f2;font-size:10.5pt;margin-top:8px}
-.pr-band small{display:block;color:#c9d3dd;font-size:9pt;margin-top:2px}
-.pr-title{text-align:center;font-size:18pt;margin:6px 0 4px;color:#1e2b3f}
-.pr .pr-title{font-family:inherit;font-weight:700}.pr .pr-sub{text-align:center}
-.pr th{text-transform:none;letter-spacing:0;font-size:10pt;font-weight:700;color:#1e2b3f}
-.pr thead th,.pr .pr-t th{color:#fff}
-.pr td{font-size:10pt;color:#1f2a37}
-.pr tbody tr:hover td{background:none}
-.pr-sub{text-align:center;color:#1f8fd6;font-size:11pt;margin:0 0 14px}
-.pr-id{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:10pt}
-.pr-id th,.pr-id td{border:1px solid #cfd8e3;padding:6px 9px;text-align:left}
-.pr-id th{background:#e9f1f8;color:#1e2b3f;width:16%}
-.pr h3{font-size:12.5pt;color:#1e2b3f;margin:16px 0 8px;padding-bottom:4px;border-bottom:1.5px solid #1f8fd6;break-after:avoid}
+/* PDFs no padrão do timbrado oficial Dtruck Center (guia visual: #0B2035, #18A8EE, #EAF3F8, Open Sans) */
+@page{size:A4;margin:12mm 14mm 26mm;
+  @bottom-left{content:"DTRUCK COMERCIO DE PEÇAS LTDA  |  CNPJ 53.995.291/0001-61\A DTRUCKCENTER.CONTRATOS@GMAIL.COM";white-space:pre;font:8pt "Open Sans",Arial,sans-serif;color:#4a5a6a;vertical-align:top;padding-top:3mm;border-top:2px solid #18A8EE}
+  @bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt "Open Sans",Arial,sans-serif;color:#4a5a6a;vertical-align:top;padding-top:3mm;border-top:2px solid #18A8EE}}
+@page laudo{@bottom-right{content:"Laudo técnico  ·  Página " counter(page) " de " counter(pages)}}
+@page os{@bottom-right{content:"Ordem de serviço  ·  Página " counter(page) " de " counter(pages)}}
+#print-root{font-family:"Open Sans",Arial,sans-serif!important;color:#0B2035}
+.pr{font:9.5pt/1.55 "Open Sans",Arial,sans-serif;color:#1d2b38}
+.pr-band{display:flex;align-items:center;gap:26px;background:#0B2035;color:#fff;padding:12px 26px;margin-bottom:20px}
+.pr-band img{height:86px;width:auto;flex:0 0 auto}
+.pr-band b{display:block;font-size:12pt;font-weight:700;letter-spacing:.01em}
+.pr-band span{display:block;color:#8fd0f5;font-size:9.5pt;margin-top:1px}
+.pr-title{text-align:center;font-size:17pt;font-weight:800;letter-spacing:.02em;margin:4px 0 2px;color:#0B2035}
+.pr .pr-sub{text-align:center;color:#18A8EE;font-size:10.5pt;font-weight:600;margin:0 0 14px}
+.pr h3{font-size:11pt;font-weight:700;color:#0B2035;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid #18A8EE;break-after:avoid}
 .pr p{margin:0 0 8px;text-align:justify}
-.pr ul{margin:0 0 8px;padding-left:20px}.pr li{margin:2px 0}
-.pr-causas{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:6px}
-.pr-causas thead th{background:#1e2b3f;color:#fff;text-align:left;padding:7px 9px;border:1px solid #1e2b3f}
-.pr-causas tbody th{background:#e9f1f8;text-align:left;vertical-align:top;padding:7px 9px;border:1px solid #cfd8e3;width:26%}
-.pr-causas td{border:1px solid #cfd8e3;padding:7px 9px;vertical-align:top}
-.pr-causas td:last-child{width:30%}
-.pr-causas tr{break-inside:avoid}
+.pr ul{margin:0 0 8px;padding-left:18px}.pr li{margin:2px 0}.pr li::marker{color:#18A8EE}
+.pr table{border-collapse:collapse;width:100%}
+.pr th,.pr td{font-size:9pt;letter-spacing:0;text-transform:none}
+.pr-id{margin-bottom:12px}
+.pr-id th,.pr-id td{border:1px solid #c9dbe8;padding:6px 9px;text-align:left}
+.pr-id th{background:#EAF3F8;color:#0B2035;font-weight:700;width:16%}
+.pr-causas{margin-bottom:6px}
+.pr-causas thead th,.pr-t th{background:#0B2035;color:#fff;font-weight:700;text-align:left;padding:7px 9px;border:1px solid #0B2035}
+.pr-causas tbody th{background:#EAF3F8;color:#0B2035;font-weight:700;text-align:left;vertical-align:top;padding:7px 9px;border:1px solid #c9dbe8;width:26%}
+.pr-causas td{border:1px solid #c9dbe8;padding:7px 9px;vertical-align:top}
+.pr-causas td:last-child{width:30%}.pr-causas td b{color:#0B2035}
+.pr-causas tr,.pr-t tr{break-inside:avoid}
+.pr-t{margin-bottom:6px}.pr-t td{border:1px solid #c9dbe8;padding:6px 8px}.pr-t .r{text-align:right}
 .pr-fotos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pr-fotos figure{margin:0;break-inside:avoid}.pr-fotos img{width:100%;height:62mm;object-fit:cover;border:1px solid #cfd8e3}
-.pr-fotos figcaption{font-size:9pt;color:#555;margin-top:3px}
-.pr-ass{margin:70px auto 0;text-align:center;break-inside:avoid}.pr-ass b{display:block;color:#1e2b3f}.pr-ass span{color:#555;font-size:10pt}
-.pr-row{display:flex;gap:8px;margin-bottom:8px}.pr-box{flex:1;border:1px solid #cfd8e3;padding:7px 9px;font-size:10pt}.pr-box h4{margin:0 0 3px;font-size:8.5pt;text-transform:uppercase;letter-spacing:.06em;color:#1f8fd6}
-.pr-t{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:6px}.pr-t th{background:#1e2b3f;color:#fff;text-align:left;padding:6px 8px}.pr-t td{border:1px solid #cfd8e3;padding:6px 8px}.pr-t .r{text-align:right}
-.pr-tot{margin:8px 0 0 auto;border-collapse:collapse;font-size:10.5pt;min-width:240px}.pr-tot td{padding:4px 8px;border-bottom:1px solid #e3e8ee}.pr-tot .r{text-align:right}.pr-tot tr.b td{font-weight:700;font-size:12pt;border-top:2px solid #1e2b3f}
-.pr-sign{display:flex;gap:40px;margin-top:60px}.pr-sign>div{flex:1;text-align:center;font-size:10pt}.pr-sign span{display:block;border-top:1px solid #1e2b3f;margin-bottom:4px}
+.pr-fotos figure{margin:0;break-inside:avoid}.pr-fotos img{width:100%;height:62mm;object-fit:cover;border:1px solid #c9dbe8;border-radius:4px}
+.pr-fotos figcaption{font-size:8.5pt;color:#4a5a6a;margin-top:3px}
+.pr-ass{margin:64px auto 0;text-align:center;break-inside:avoid;width:280px;border-top:1px solid #0B2035;padding-top:6px}.pr-ass b{display:block;color:#0B2035}.pr-ass span{color:#4a5a6a;font-size:9pt}
+.pr-row{display:flex;gap:8px;margin-bottom:8px}.pr-box{flex:1;border:1px solid #c9dbe8;border-radius:4px;padding:7px 9px;font-size:9pt}.pr-box h4{margin:0 0 3px;font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:#18A8EE;font-weight:700}
+.pr-tot{margin:8px 0 0 auto;width:auto!important;min-width:240px;font-size:9.5pt}.pr-tot td{padding:4px 8px;border-bottom:1px solid #e1ebf2}.pr-tot .r{text-align:right}.pr-tot tr.b td{font-weight:800;font-size:11.5pt;color:#0B2035;border-top:2px solid #18A8EE;border-bottom:0}
+.pr-sign{display:flex;gap:40px;margin-top:60px}.pr-sign>div{flex:1;text-align:center;font-size:9pt}.pr-sign span{display:block;border-top:1px solid #0B2035;margin-bottom:4px}
 </style>
 <style>html,body{margin:0}body{font-size:14px}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 </head>
@@ -1288,7 +1288,7 @@ function cliTable(){
 // ---------- Impressão (timbrado Dtruck Center) ----------
 const EMPRESA={nome:'DTRUCK COMERCIO DE PEÇAS LTDA',cnpj:'53.995.291/0001-61',email:'DTRUCKCENTER.CONTRATOS@GMAIL.COM'};
 function cabecalhoDtruck(){const logo=document.querySelector('.brand .logo').src;
-  return `<header class="pr-band"><div class="pr-logo"><img src="${logo}" alt="Dtruck Center"></div><div><b>DTRUCK CENTER</b><span>Manutenção de veículos pesados e serviços para frotas</span><small>Brasília – DF</small></div></header>`}
+  return `<header class="pr-band"><img src="${logo}" alt="Dtruck Center"><div><b>OFICINA DE CAMINHÕES E AUTOPEÇAS</b><span>Brasília • DF</span></div></header>`}
 function imprimir(tipo,corpo){
   let r=$('#print-root');if(!r){r=document.createElement('div');r.id='print-root';document.body.appendChild(r)}
   r.className='pr-'+tipo;r.innerHTML=`<div class="pr">${cabecalhoDtruck()}${corpo}</div>`;
