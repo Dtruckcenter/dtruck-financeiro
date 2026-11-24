@@ -348,7 +348,7 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
       </div></div>
       <div class="navgrp" data-g="cad"><button type="button" class="grp-t" aria-expanded="true"><span>Cadastros</span><svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="grp-b">
         <a href="#clientes" data-v="clientes">Clientes</a>
-        <a href="#pecas" data-v="pecas">Peças</a>
+        <a href="#pecas" data-v="pecas">Produtos</a>
         <a href="#entrada" data-v="entrada" id="nav-entrada">Entrada de mercadoria</a>
       </div></div>
       <a href="#laudos" data-v="laudos" class="nav-solo">Laudos</a>
@@ -367,12 +367,12 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
 <script>
 // ---------- Constantes ----------
 const CATS = [
-  {id:'venda_pecas', nome:'Venda de peças', tipo:'entrada', grupo:'receita'},
+  {id:'venda_pecas', nome:'Venda de produtos', tipo:'entrada', grupo:'receita'},
   {id:'servicos', nome:'Serviços / mão de obra', tipo:'entrada', grupo:'receita'},
   {id:'locacao', nome:'Locação de equipamentos', tipo:'entrada', grupo:'receita'},
   {id:'rec_fin', nome:'Receitas financeiras', tipo:'entrada', grupo:'rec_fin'},
   {id:'outras_rec', nome:'Outras receitas', tipo:'entrada', grupo:'rec_fin'},
-  {id:'compra_pecas', nome:'Compra de peças (estoque)', tipo:'saida', grupo:'cmv'},
+  {id:'compra_pecas', nome:'Compra de produtos (estoque)', tipo:'saida', grupo:'cmv'},
   {id:'frete_compra', nome:'Frete sobre compras', tipo:'saida', grupo:'cmv'},
   {id:'impostos', nome:'Impostos sobre vendas', tipo:'saida', grupo:'deducoes'},
   {id:'devolucoes', nome:'Devoluções e descontos', tipo:'saida', grupo:'deducoes'},
@@ -523,7 +523,7 @@ function vPainel(){
   <div class="three">
     <div class="panel"><h2>Próximos vencimentos</h2>${venc.length?`<div class="list">${venc.map(l=>`<div class="li"><span class="t">${esc(l.descricao)}</span><span class="num ${l.tipo==='entrada'?'pos':'neg'}">${l.tipo==='entrada'?'+':'−'}${fmt(l.valor)}</span><span class="m">${fmtD(l.data)} · ${statusPill(l)}</span><span><button class="btn sm" data-act="pay" data-id="${l.id}">${l.tipo==='entrada'?'Receber':'Pagar'}</button></span></div>`).join('')}</div>`:'<p class="empty">Nenhuma conta em aberto.</p>'}</div>
     <div class="panel"><h2>Melhores clientes do mês</h2>${clis.length?`<div class="bars">${clis.map(([c,v])=>`<div class="bar-row"><span>${esc(cliNome(c)||'Cliente removido')}</span><span class="num">${fmt(v)}</span><div class="bar-track"><div class="bar-fill alt" style="width:${v/clmax*100}%"></div></div></div>`).join('')}</div>`:'<p class="empty">Nenhuma venda com cliente vinculado neste mês.</p>'}</div>
-    <div class="panel"><h2>Estoque baixo</h2>${baixo.length?`<div class="list">${baixo.map(p=>`<div class="li"><span class="t">${esc(p.descricao)}</span><span class="num ${(+p.estoque)<=0?'neg':''}">${+p.estoque||0} un</span><span class="m">${esc(p.codigo)} · mínimo ${+p.estoqueMin||0}</span></div>`).join('')}</div>`:'<p class="empty">Todas as peças acima do estoque mínimo.</p>'}</div>
+    <div class="panel"><h2>Estoque baixo</h2>${baixo.length?`<div class="list">${baixo.map(p=>`<div class="li"><span class="t">${esc(p.descricao)}</span><span class="num ${(+p.estoque)<=0?'neg':''}">${+p.estoque||0} un</span><span class="m">${esc(p.codigo)} · mínimo ${+p.estoqueMin||0}</span></div>`).join('')}</div>`:'<p class="empty">Todos os produtos acima do estoque mínimo.</p>'}</div>
   </div>`;
 }
 
@@ -558,7 +558,7 @@ function vLancs(){
     $('#lf-cat').onchange=e=>{f.cat=e.target.value;upd()};
     let t;$('#lf-q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{f.q=e.target.value;upd()},180)};
   });
-  return `<div class="head"><div><h1>Entradas e saídas</h1><p class="sub">Vendas, serviços, compras de peças e despesas. Vendas e compras com peça vinculada atualizam o estoque.</p></div>
+  return `<div class="head"><div><h1>Entradas e saídas</h1><p class="sub">Vendas, serviços, compras de produtos e despesas. Vendas e compras com produto vinculado atualizam o estoque.</p></div>
     <div class="tools"><a class="btn" href="#notas">Importar notas</a><button class="btn pri" data-act="new-lanc" data-tipo="entrada">+ Entrada</button><button class="btn" data-act="new-lanc" data-tipo="saida">+ Saída</button></div></div>
   <div class="filters">
     ${monthPicker('lf-mes',f.mes)}<button class="btn sm" id="lf-todos">Todos os meses</button>
@@ -620,7 +620,7 @@ function vDre(){
     ${line('Receita bruta de vendas e serviços','receita','tot')}
     ${line('(−) Deduções: impostos e devoluções','deducoes','sub1',true)}
     ${line('= Receita líquida','recLiq','tot')}
-    ${line('(−) Custo das peças vendidas (CMV)','cmv','sub1',true)}
+    ${line('(−) Custo dos produtos vendidos (CMV)','cmv','sub1',true)}
     ${line('= Lucro bruto','lucroBruto','key')}
     ${line('(−) Despesas com pessoal','desp_pessoal','sub1',true)}
     ${line('(−) Despesas administrativas','desp_adm','sub1',true)}
@@ -631,7 +631,7 @@ function vDre(){
     ${line('(−) Despesas financeiras','desp_fin','sub1',true)}
     ${line('= Resultado líquido do período','resLiq','key')}
   </tbody></table></div>
-  <p class="hint" style="margin-top:10px">AV% = análise vertical sobre a receita bruta. Investimentos em equipamentos (${fmt(T.invest)} em ${Y}) ficam fora da DRE e aparecem só no fluxo de caixa. O CMV usa as compras de peças lançadas no período.</p>`;
+  <p class="hint" style="margin-top:10px">AV% = análise vertical sobre a receita bruta. Investimentos em equipamentos (${fmt(T.invest)} em ${Y}) ficam fora da DRE e aparecem só no fluxo de caixa. O CMV usa as compras de produtos lançadas no período.</p>`;
 }
 
 function vClientes(){
@@ -643,7 +643,7 @@ function vPecas(){
   afterHooks.push(()=>{let t;$('#pq').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{UI.pq=e.target.value;$('#ptb').innerHTML=pecaTable()},180)};$('#pf').onchange=e=>{UI.pf=e.target.value;$('#ptb').innerHTML=pecaTable()}});
   const valEst=sum(S.pecas,p=>(+p.custo||0)*(+p.estoque||0)), valVen=sum(S.pecas,p=>(+p.preco||0)*(+p.estoque||0));
   const baixo=S.pecas.filter(p=>(+p.estoque||0)<=(+p.estoqueMin||0)).length;
-  return `<div class="head"><div><h1>Peças</h1><p class="sub">Catálogo e estoque. Vendas e compras lançadas com peça ajustam a quantidade automaticamente.</p></div><div class="tools"><button class="btn pri" data-act="new-peca">+ Nova peça</button></div></div>
+  return `<div class="head"><div><h1>Produtos</h1><p class="sub">Catálogo e estoque. Vendas e compras lançadas com produto ajustam a quantidade automaticamente.</p></div><div class="tools"><button class="btn pri" data-act="new-peca">+ Novo produto</button></div></div>
   <div class="kpis"><div class="kpi"><span class="lbl">Itens cadastrados</span><span class="val">${S.pecas.length}</span></div><div class="kpi"><span class="lbl">Estoque a custo</span><span class="val">${fmt(valEst)}</span></div><div class="kpi"><span class="lbl">Estoque a preço de venda</span><span class="val">${fmt(valVen)}</span></div><div class="kpi"><span class="lbl">Abaixo do mínimo</span><span class="val ${baixo?'neg':''}">${baixo}</span></div></div>
   <div class="filters"><input type="search" id="pq" placeholder="Buscar código, descrição, marca ou aplicação" value="${esc(UI.pq)}"><select id="pf" aria-label="Filtro de estoque"><option value="">Todo o estoque</option><option value="baixo" ${UI.pf==='baixo'?'selected':''}>Só abaixo do mínimo</option></select></div>
   <div id="ptb">${pecaTable()}</div>`;
@@ -657,7 +657,7 @@ function pecaTable(){
    <td class="num">${fmt(p.custo)}</td><td class="num">${fmt(p.preco)}</td><td class="num">${(mg*100).toFixed(0)}%</td>
    <td class="num"><span class="pill ${e<=0?'late':e<=mn?'pend':'ok'}">${e} un</span><div class="hint">mín. ${mn}</div></td>
    <td><div class="act"><button class="btn sm ghost" data-act="edit-peca" data-id="${p.id}">Editar</button><button class="btn sm ghost danger" data-act="del-peca" data-id="${p.id}">Excluir</button></div></td></tr>`}).join('')
-  :`<tr><td colspan="9" class="empty">${S.pecas.length?'Nenhuma peça encontrada.':'Nenhuma peça ainda. Clique em “+ Nova peça”.'}</td></tr>`}</tbody></table></div>`;
+  :`<tr><td colspan="9" class="empty">${S.pecas.length?'Nenhum produto encontrado.':'Nenhum produto ainda. Clique em “+ Novo produto”.'}</td></tr>`}</tbody></table></div>`;
 }
 
 // ---------- Modais ----------
@@ -687,7 +687,7 @@ function lancForm(l){
    <div class="f"><label for="l-val">Valor (R$)</label><input id="l-val" name="valor" type="number" step="0.01" min="0" required value="${l.valor??''}" inputmode="decimal"></div>
    <div class="f" id="w-cli"><label for="l-cli">Cliente</label><select id="l-cli" name="clienteId"><option value="">— sem cliente —</option>${S.clientes.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}" ${l.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
    <div class="f" id="w-forn"><label for="l-forn">Fornecedor / favorecido</label><input id="l-forn" name="fornecedor" value="${esc(l.fornecedor)}"></div>
-   <div class="f" id="w-pec"><label for="l-pec">Peça (opcional)</label><select id="l-pec" name="pecaId"><option value="">— nenhuma —</option>${S.pecas.slice().sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))).map(p=>`<option value="${p.id}" ${l.pecaId===p.id?'selected':''}>${esc(p.codigo)} · ${esc(p.descricao)} (${+p.estoque||0} un)</option>`).join('')}</select></div>
+   <div class="f" id="w-pec"><label for="l-pec">Produto (opcional)</label><select id="l-pec" name="pecaId"><option value="">— nenhuma —</option>${S.pecas.slice().sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo))).map(p=>`<option value="${p.id}" ${l.pecaId===p.id?'selected':''}>${esc(p.codigo)} · ${esc(p.descricao)} (${+p.estoque||0} un)</option>`).join('')}</select></div>
    <div class="f" id="w-qtd"><label for="l-qtd">Quantidade</label><input id="l-qtd" name="qtd" type="number" min="1" step="1" value="${l.qtd||1}"></div>
    <div class="f"><label for="l-forma">Forma de pagamento</label><select id="l-forma" name="forma">${FORMAS.map(f=>`<option ${l.forma===f?'selected':''}>${f}</option>`).join('')}</select></div>
    <div class="f"><label for="l-doc">Nº nota / documento</label><input id="l-doc" name="documento" value="${esc(l.documento)}"></div>
@@ -708,7 +708,7 @@ function lancForm(l){
       $('#w-cli').hidden=t!=='entrada';$('#w-forn').hidden=t!=='saida';$('#l-pago-t').textContent=t==='entrada'?'Já recebido':'Já pago';syncPeca(first)};
     const syncPeca=(first)=>{const c=$('#l-cat').value;const show=c==='venda_pecas'||c==='compra_pecas';$('#w-pec').hidden=!show;$('#w-qtd').hidden=!show||!$('#l-pec').value;
       if(!show)$('#l-pec').value='';
-      $('#l-hint').textContent=show?(c==='venda_pecas'?'A quantidade sai do estoque da peça ao salvar.':'A quantidade entra no estoque da peça ao salvar.'):'';
+      $('#l-hint').textContent=show?(c==='venda_pecas'?'A quantidade sai do estoque do produto ao salvar.':'A quantidade entra no estoque do produto ao salvar.'):'';
       if(!first&&show&&$('#l-pec').value){const p=pecaById($('#l-pec').value);const q=parseInt($('#l-qtd').value)||1;const u=c==='venda_pecas'?+p.preco:+p.custo;if(u)$('#l-val').value=r2(u*q).toFixed(2);if(!$('#l-desc').value.trim())$('#l-desc').value=(c==='venda_pecas'?'Venda ':'Compra ')+p.descricao}};
     f.querySelectorAll('[name=tipo]').forEach(r=>r.onchange=()=>sync(false));
     $('#l-cat').onchange=()=>syncPeca(false);$('#l-pec').onchange=()=>syncPeca(false);$('#l-qtd').oninput=()=>syncPeca(false);
@@ -729,7 +729,7 @@ async function saveLanc(old,doc){
 }
 
 function pecaForm(p){
-  openModal(`<h2>${p.id?'Editar peça':'Nova peça'}</h2><div class="form">
+  openModal(`<h2>${p.id?'Editar produto':'Novo produto'}</h2><div class="form">
    <div class="f w2"><label for="p-cod">Código</label><input id="p-cod" name="codigo" required value="${esc(p.codigo)}"></div>
    <div class="f w4"><label for="p-desc">Descrição</label><input id="p-desc" name="descricao" required value="${esc(p.descricao)}"></div>
    <div class="f"><label for="p-mar">Marca</label><input id="p-mar" name="marca" value="${esc(p.marca)}"></div>
@@ -739,11 +739,11 @@ function pecaForm(p){
    <div class="f w2"><label>Margem</label><input id="p-mg" disabled></div>
    <div class="f"><label for="p-est">Estoque atual</label><input id="p-est" name="estoque" type="number" step="1" value="${p.estoque??0}"></div>
    <div class="f"><label for="p-min">Estoque mínimo</label><input id="p-min" name="estoqueMin" type="number" step="1" min="0" value="${p.estoqueMin??0}"></div>
-  </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Salvar peça</button></div>`,async fd=>{
+  </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Salvar produto</button></div>`,async fd=>{
     if(!fd.codigo.trim()||!fd.descricao.trim()){toast('Informe código e descrição.');return false}
     const d={codigo:fd.codigo.trim(),descricao:fd.descricao.trim(),marca:fd.marca.trim(),aplicacao:fd.aplicacao.trim(),custo:r2(+fd.custo||0),preco:r2(+fd.preco||0),estoque:parseInt(fd.estoque)||0,estoqueMin:parseInt(fd.estoqueMin)||0,exemplo:!!p.exemplo&&!!p.id,criadoEm:p.criadoEm||Date.now()};
     const ref=p.id?S.db.doc('pecas/'+p.id):S.db.collection('pecas').doc();
-    return guard(ref.set(d),p.id?'Peça atualizada':'Peça cadastrada');
+    return guard(ref.set(d),p.id?'Produto atualizado':'Produto cadastrado');
   },f=>{const u=()=>{const c=+$('#p-cus').value,v=+$('#p-pre').value;$('#p-mg').value=v?(((v-c)/v)*100).toFixed(1).replace('.',',')+'% · lucro '+fmt(v-c):'—'};$('#p-cus').oninput=u;$('#p-pre').oninput=u;u()});
 }
 
@@ -889,7 +889,7 @@ function impPreview(){
     if(n.erro)return '';
     if(n.kind==='cancel')return `<tr class="${n.incluir?'':'off'}"><td><input type="checkbox" data-imp="chk" data-i="${ix}" ${n.incluir?'checked':''} ${n.status!=='desfazer'?'disabled':''} aria-label="Incluir"></td><td colspan="2">Evento de cancelamento<div class="hint">${esc(n.chave)}</div></td><td colspan="4">${n.status==='desfazer'?'Vai desfazer a importação desta nota (lançamentos e estoque).':n.status==='junto'?'A nota cancelada veio no mesmo lote e não será importada.':'Nota não encontrada entre as importadas.'}</td><td>${STATUS_PILL[n.status]}</td></tr>`;
     const cats=CATS.filter(c=>c.tipo===(n.tipo||'entrada')).map(c=>`<option value="${c.id}" ${n.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
-    const itensHtml=n.itens.length&&stockCat(n)&&n.tipo?`<details class="items"><summary>${n.itens.length} item(ns) · ${n.itens.filter(i=>i.map==='new').length} peça(s) nova(s) no cadastro</summary><div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th class="num">Qtd</th><th class="num">Unit.</th><th>Peça no cadastro da Dtruck</th></tr></thead><tbody>${n.itens.map((i,j)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.descricao)}</td><td class="num">${i.qtd}</td><td class="num">${fmt(i.unit)}</td><td><select data-imp="map" data-i="${ix}" data-j="${j}" aria-label="Peça correspondente"><option value="new" ${i.map==='new'?'selected':''}>+ Cadastrar como peça nova</option><option value="none" ${i.map==='none'?'selected':''}>Não controlar estoque</option>${pecaOpts.replace(`value="${i.map}"`,`value="${i.map}" selected`)}</select></td></tr>`).join('')}</tbody></table></div></details>`:(n.servico?`<div class="hint">${esc(n.servico.slice(0,120))}</div>`:'');
+    const itensHtml=n.itens.length&&stockCat(n)&&n.tipo?`<details class="items"><summary>${n.itens.length} item(ns) · ${n.itens.filter(i=>i.map==='new').length} produto(s) novo(s) no cadastro</summary><div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th class="num">Qtd</th><th class="num">Unit.</th><th>Produto no cadastro da Dtruck</th></tr></thead><tbody>${n.itens.map((i,j)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.descricao)}</td><td class="num">${i.qtd}</td><td class="num">${fmt(i.unit)}</td><td><select data-imp="map" data-i="${ix}" data-j="${j}" aria-label="Produto correspondente"><option value="new" ${i.map==='new'?'selected':''}>+ Cadastrar como produto novo</option><option value="none" ${i.map==='none'?'selected':''}>Não controlar estoque</option>${pecaOpts.replace(`value="${i.map}"`,`value="${i.map}" selected`)}</select></td></tr>`).join('')}</tbody></table></div></details>`:(n.servico?`<div class="hint">${esc(n.servico.slice(0,120))}</div>`:'');
     const jaAuto=((S.dfe.find(x=>x.id===safeId(n.chave))||{}).lancAuto||[]).filter(id=>S.lancs.some(l=>l.id===id)).length;
     const parc=jaAuto?`Contas a pagar já criadas pela Receita (${jaAuto})`:n.dups.length?`${n.dups.length}x · 1º venc. ${fmtD(n.dups[0].venc)}`:(imp.avista?'À vista (pago na emissão)':'Em aberto, venc. na emissão');
     return `<tr class="${n.incluir?'':'off'}"><td><input type="checkbox" data-imp="chk" data-i="${ix}" ${n.incluir?'checked':''} ${n.tipo?'':'disabled'} aria-label="Incluir nota"></td>
@@ -903,9 +903,9 @@ function impPreview(){
   return `<div class="panel" style="margin-bottom:16px">
     <div class="cnpjbar"><label for="imp-me"><b>CNPJ da Dtruck</b></label><input id="imp-me" value="${esc(fmtDoc(imp.me))}" inputmode="numeric"><button class="btn sm" data-act="imp-me">Aplicar</button>
       <span class="hint">${imp.guessed&&imp.me?`Identificado automaticamente nas notas${imp.meNome?': '+esc(imp.meNome):''}. Confira.`:'Usado para saber se a nota é venda (Dtruck emitiu) ou compra (Dtruck recebeu).'}</span></div>
-    <div class="summary"><span>${notas.length} nota(s) lida(s)</span><span>${sel.length} selecionada(s)</span><span>Entradas <b class="pos">${fmt(ent)}</b></span><span>Saídas <b class="neg">${fmt(sai)}</b></span><span>${novosCli} cliente(s) novo(s)</span><span>${novasPecas} peça(s) nova(s)</span>${canc.length?`<span>${canc.length} cancelamento(s)</span>`:''}</div>
+    <div class="summary"><span>${notas.length} nota(s) lida(s)</span><span>${sel.length} selecionada(s)</span><span>Entradas <b class="pos">${fmt(ent)}</b></span><span>Saídas <b class="neg">${fmt(sai)}</b></span><span>${novosCli} cliente(s) novo(s)</span><span>${novasPecas} produto(s) novo(s)</span>${canc.length?`<span>${canc.length} cancelamento(s)</span>`:''}</div>
     <div class="optrow">
-      <label class="check"><input type="checkbox" data-imp="opt" data-k="estoque" ${imp.estoque?'checked':''}> Atualizar estoque das peças</label>
+      <label class="check"><input type="checkbox" data-imp="opt" data-k="estoque" ${imp.estoque?'checked':''}> Atualizar estoque dos produtos</label>
       <label class="check"><input type="checkbox" data-imp="opt" data-k="clientes" ${imp.clientes?'checked':''}> Cadastrar clientes novos</label>
       <label class="check"><input type="checkbox" data-imp="opt" data-k="avista" ${imp.avista?'checked':''}> Notas sem parcelas entram como pagas na data da emissão</label>
     </div>
@@ -924,7 +924,7 @@ function vNotas(){
     }
   });
   const hist=S.notas.slice().sort((a,b)=>(b.importadoEm||0)-(a.importadoEm||0));
-  return `<div class="head"><div><h1>Importar notas fiscais</h1><p class="sub">Envie os XML das notas exportadas do LocControl. Vendas viram entradas e contas a receber, compras viram saídas e contas a pagar, e o estoque das peças é atualizado.</p></div></div>
+  return `<div class="head"><div><h1>Importar notas fiscais</h1><p class="sub">Envie os XML das notas exportadas do LocControl. Vendas viram entradas e contas a receber, compras viram saídas e contas a pagar, e o estoque dos produtos é atualizado.</p></div></div>
   ${UI.imp&&!UI.imp.result?'':`<label class="drop" id="drop" for="imp-file"><b>Arraste os arquivos XML ou ZIP aqui</b><span class="hint">ou clique para escolher · NF-e, NFC-e, NFS-e e eventos de cancelamento · pode enviar vários de uma vez</span><input type="file" id="imp-file" multiple accept=".xml,.zip,text/xml,application/xml,application/zip"></label>`}
   ${UI.imp&&UI.imp.result?`<div class="banner" style="background:var(--pos-soft);border-color:var(--pos)"><span>${esc(UI.imp.result)}</span><a class="btn sm" href="#lancamentos">Ver lançamentos</a></div>`:''}
   ${UI.imp&&!UI.imp.result?impPreview():''}
@@ -999,7 +999,7 @@ async function runImport(){
       }catch(err){console.error(err);nErr++;if(err&&(err.code==='invalid_argument'||err.code==='quota_exceeded'))throw err}
     }
     setProg(todo.length,'Concluído');
-    UI.imp={result:`${nOk} nota(s) importada(s)`+(nCli?`, ${nCli} cliente(s) cadastrado(s)`:'')+(nPec?`, ${nPec} peça(s) nova(s)`:'')+(nUndo?`, ${nUndo} cancelamento(s) desfeito(s)`:'')+(nErr?`. ${nErr} nota(s) com erro, tente enviar de novo.`:'.')};
+    UI.imp={result:`${nOk} nota(s) importada(s)`+(nCli?`, ${nCli} cliente(s) cadastrado(s)`:'')+(nPec?`, ${nPec} produto(s) novo(s)`:'')+(nUndo?`, ${nUndo} cancelamento(s) desfeito(s)`:'')+(nErr?`. ${nErr} nota(s) com erro, tente enviar de novo.`:'.')};
   }catch(err){
     UI.imp.running=false;
     toast(err&&err.code==='invalid_argument'?'Você não tem permissão para gravar dados neste sistema.':err&&err.code==='quota_exceeded'?'Limite de armazenamento atingido.':'A importação parou por um erro. As notas já gravadas aparecem em “Notas já importadas”.');
@@ -1328,7 +1328,7 @@ function vOS(){
     .sort((a,b)=>String(b.entrada||'').localeCompare(String(a.entrada||'')));
   afterHooks.push(()=>{let t;const i=$('#osq');i.oninput=()=>{clearTimeout(t);t=setTimeout(()=>{f.q=i.value;$('#os-tab').innerHTML=osTabela(rows.length?null:null)},200)}});
   const tabs=[['patio','No pátio'],...OS_ST.map(([k,l])=>[k,l]),['todas','Todas']];
-  return `<div class="head"><div><h1>Ordens de serviço</h1><p class="sub">Caminhões que entram e saem da oficina, serviços feitos, peças usadas e valores.</p></div><div class="tools"><button class="btn pri" data-act="os-new">+ Nova OS (entrada de caminhão)</button></div></div>
+  return `<div class="head"><div><h1>Ordens de serviço</h1><p class="sub">Caminhões que entram e saem da oficina, serviços feitos, produtos usados e valores.</p></div><div class="tools"><button class="btn pri" data-act="os-new">+ Nova OS (entrada de caminhão)</button></div></div>
   <div class="kpis">
     <div class="kpi click ${f.st==='patio'?'hl':''}" data-act="os-st" data-st="patio" role="button" tabindex="0"><span class="lbl">No pátio agora</span><span class="val">${patio.length}</span><span class="note">caminhão(ões) na oficina</span></div>
     <div class="kpi click ${f.st==='pronta'?'hl':''}" data-act="os-st" data-st="pronta" role="button" tabindex="0"><span class="lbl">Prontos p/ retirada</span><span class="val ${prontas.length?'pos':''}">${prontas.length}</span><span class="note">aguardando o cliente</span></div>
@@ -1387,11 +1387,11 @@ function osEditor(){
     ${(o.servicos||[]).map((s,i)=>`<tr><td><input data-osf="servicos.${i}.desc" value="${esc(s.desc)}" style="width:100%" placeholder="Ex.: troca do kit de embreagem" ${ro?'disabled':''}></td><td><input data-osf="servicos.${i}.horas" value="${esc(s.horas)}" inputmode="decimal" style="width:100%;text-align:right" ${ro?'disabled':''}></td><td><input data-osf="servicos.${i}.valor" data-num="1" value="${esc(s.valor)}" inputmode="decimal" style="width:100%;text-align:right" ${ro?'disabled':''}></td><td>${ro?'':`<button type="button" class="btn sm ghost danger" data-act="os-rm" data-k="servicos" data-i="${i}" aria-label="Remover">✕</button>`}</td></tr>`).join('')}
     </tbody></table></div>${ro?'':'<button type="button" class="btn sm" data-act="os-add" data-k="servicos" style="margin-top:8px">+ Serviço</button>'}
   </div>
-  <div class="panel" style="margin-bottom:16px"><h2>Peças utilizadas</h2>
-    <div class="tw"><table><thead><tr><th>Peça do estoque</th><th>Descrição</th><th class="num" style="width:90px">Qtd</th><th class="num" style="width:130px">Unitário (R$)</th><th class="num" style="width:120px">Subtotal</th><th style="width:40px"></th></tr></thead><tbody>
-    ${(o.pecas||[]).map((p,i)=>`<tr><td><select data-osf="pecas.${i}.pecaId" data-peca="${i}" style="max-width:240px" ${ro||fat?'disabled':''}><option value="">— avulsa —</option>${pecaOpts(p.pecaId)}</select></td><td><input data-osf="pecas.${i}.desc" value="${esc(p.desc)}" style="width:100%" ${ro?'disabled':''}></td><td><input data-osf="pecas.${i}.qtd" data-num="1" value="${esc(p.qtd)}" inputmode="decimal" style="width:100%;text-align:right" ${ro||fat?'disabled':''}></td><td><input data-osf="pecas.${i}.unit" data-num="1" value="${esc(p.unit)}" inputmode="decimal" style="width:100%;text-align:right" ${ro?'disabled':''}></td><td class="num" id="os-sub-${i}">${fmt((+p.qtd||0)*(+p.unit||0))}</td><td>${ro||fat?'':`<button type="button" class="btn sm ghost danger" data-act="os-rm" data-k="pecas" data-i="${i}" aria-label="Remover">✕</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Nenhuma peça lançada.</td></tr>'}
-    </tbody></table></div>${ro||fat?'':'<button type="button" class="btn sm" data-act="os-add" data-k="pecas" style="margin-top:8px">+ Peça</button>'}
-    <p class="hint" style="margin:8px 0 0">Peças escolhidas do estoque dão baixa automática quando a OS é faturada.</p>
+  <div class="panel" style="margin-bottom:16px"><h2>Produtos utilizados</h2>
+    <div class="tw"><table><thead><tr><th>Produto do estoque</th><th>Descrição</th><th class="num" style="width:90px">Qtd</th><th class="num" style="width:130px">Unitário (R$)</th><th class="num" style="width:120px">Subtotal</th><th style="width:40px"></th></tr></thead><tbody>
+    ${(o.pecas||[]).map((p,i)=>`<tr><td><select data-osf="pecas.${i}.pecaId" data-peca="${i}" style="max-width:240px" ${ro||fat?'disabled':''}><option value="">— avulsa —</option>${pecaOpts(p.pecaId)}</select></td><td><input data-osf="pecas.${i}.desc" value="${esc(p.desc)}" style="width:100%" ${ro?'disabled':''}></td><td><input data-osf="pecas.${i}.qtd" data-num="1" value="${esc(p.qtd)}" inputmode="decimal" style="width:100%;text-align:right" ${ro||fat?'disabled':''}></td><td><input data-osf="pecas.${i}.unit" data-num="1" value="${esc(p.unit)}" inputmode="decimal" style="width:100%;text-align:right" ${ro?'disabled':''}></td><td class="num" id="os-sub-${i}">${fmt((+p.qtd||0)*(+p.unit||0))}</td><td>${ro||fat?'':`<button type="button" class="btn sm ghost danger" data-act="os-rm" data-k="pecas" data-i="${i}" aria-label="Remover">✕</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Nenhum produto lançado.</td></tr>'}
+    </tbody></table></div>${ro||fat?'':'<button type="button" class="btn sm" data-act="os-add" data-k="pecas" style="margin-top:8px">+ Produto</button>'}
+    <p class="hint" style="margin:8px 0 0">Produtos escolhidos do estoque dão baixa automática quando a OS é faturada.</p>
   </div>
   <div class="osgrid">
    <div class="panel"><h2>Observações</h2><textarea data-osf="obs" rows="4" style="width:100%" ${ro?'disabled':''}>${esc(o.obs)}</textarea></div>
@@ -1402,7 +1402,7 @@ function osEditor(){
   </div>
 `;
 }
-function osTotHtml(o){const t=osTot(o);return `<div class="li"><span>Serviços</span><span class="num">${fmt(t.sv)}</span></div><div class="li"><span>Peças</span><span class="num">${fmt(t.pc)}</span></div>${t.de?`<div class="li"><span>Desconto</span><span class="num neg">−${fmt(t.de)}</span></div>`:''}<div class="li" style="font-size:18px"><b>Total</b><b class="num">${fmt(t.total)}</b></div>`}
+function osTotHtml(o){const t=osTot(o);return `<div class="li"><span>Serviços</span><span class="num">${fmt(t.sv)}</span></div><div class="li"><span>Produtos</span><span class="num">${fmt(t.pc)}</span></div>${t.de?`<div class="li"><span>Desconto</span><span class="num neg">−${fmt(t.de)}</span></div>`:''}<div class="li" style="font-size:18px"><b>Total</b><b class="num">${fmt(t.total)}</b></div>`}
 function osLimpo(o){const c=JSON.parse(JSON.stringify(o));delete c.id;delete c._novo;c.veiculo=c.veiculo||{};c.veiculo.placa=placaFmt(c.veiculo.placa);c.veiculo.chassi=String(c.veiculo.chassi||'').toUpperCase();
   c.servicos=(c.servicos||[]).filter(s=>String(s.desc||'').trim()||+s.valor).map(s=>({desc:String(s.desc||'').trim(),horas:s.horas||'',valor:r2(+String(s.valor).replace(',','.')||0)}));
   c.pecas=(c.pecas||[]).filter(p=>p.pecaId||String(p.desc||'').trim()).map(p=>({pecaId:p.pecaId||'',codigo:p.codigo||'',desc:String(p.desc||'').trim(),qtd:+String(p.qtd).replace(',','.')||0,unit:r2(+String(p.unit).replace(',','.')||0)}));
@@ -1420,7 +1420,7 @@ document.addEventListener('change',e=>{const el=e.target;if(!el.dataset||!UI.os.
   else if(el.dataset.osf==='status'||el.dataset.osf==='clienteId'){setPath(UI.os.edit,el.dataset.osf,el.value);UI.os.dirty=true}});
 async function osFaturar(){const o=UI.os.edit,t=osTot(osLimpo(o));if(!(t.total>0)){toast('A OS está sem valor para faturar.');return}
   if(!o.clienteId){toast('Escolha o cliente antes de faturar.');return}
-  openModal(`<h2>Faturar OS ${esc(o.numero)}</h2><p>Total <b>${fmt(t.total)}</b>. As parcelas entram em Contas a receber${(o.pecas||[]).some(p=>p.pecaId)?' e as peças do estoque recebem baixa':''}.</p><div class="form">
+  openModal(`<h2>Faturar OS ${esc(o.numero)}</h2><p>Total <b>${fmt(t.total)}</b>. As parcelas entram em Contas a receber${(o.pecas||[]).some(p=>p.pecaId)?' e os produtos do estoque recebem baixa':''}.</p><div class="form">
     <div class="f w2"><label for="fa-n">Parcelas</label><select id="fa-n" name="n">${[1,2,3,4,5,6,8,10,12].map(n=>`<option>${n}</option>`).join('')}</select></div>
     <div class="f w2"><label for="fa-v">1º vencimento</label><input id="fa-v" type="date" name="venc" value="${today}"></div>
     <div class="f w2"><label for="fa-i">Intervalo (dias)</label><input id="fa-i" type="number" name="int" value="30" min="1"></div>
@@ -1438,14 +1438,14 @@ async function osFaturar(){const o=UI.os.edit,t=osTot(osLimpo(o));if(!(t.total>0
 }
 async function osDesfaturar(){const o=UI.os.edit,f=o.faturado;const pagos=(f.lancIds||[]).filter(id=>S.lancs.find(l=>l.id===id&&l.pago));
   if(pagos.length){toast(`${pagos.length} parcela(s) já recebida(s). Estorne o recebimento em Contas a receber antes.`);return}
-  confirmBox('Desfazer faturamento',`Apagar as ${(f.lancIds||[]).length} parcela(s) em aberto e devolver as peças ao estoque?`,'Desfazer',async()=>{
+  confirmBox('Desfazer faturamento',`Apagar as ${(f.lancIds||[]).length} parcela(s) em aberto e devolver os produtos ao estoque?`,'Desfazer',async()=>{
     const ok=await guard((async()=>{for(const id of f.lancIds||[])await S.db.doc('lancamentos/'+id).delete();
       for(const b of f.baixas||[]){const pc=pecaById(b.pecaId);if(pc)await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)+b.qtd})}
       await S.db.doc('os/'+o.id).update({faturado:null});UI.os.edit.faturado=null})(),'Faturamento desfeito');if(ok)render()})}
 function osExcluir(o,noEditor){if(!o)return;const f=o.faturado;
   const pagos=f?(f.lancIds||[]).filter(id=>S.lancs.find(l=>l.id===id&&l.pago)).length:0;
   if(pagos){toast(`A OS ${o.numero} tem ${pagos} parcela(s) já recebida(s). Estorne o recebimento em Contas a receber antes de excluir.`);return}
-  confirmBox('Excluir OS',`Excluir a OS ${esc(o.numero)}${o.veiculo&&o.veiculo.placa?' ('+esc(placaFmt(o.veiculo.placa))+')':''}?${f?' As parcelas em aberto em Contas a receber serão apagadas e as peças voltam para o estoque.':''} Isso não pode ser desfeito.`,'Excluir',async()=>{
+  confirmBox('Excluir OS',`Excluir a OS ${esc(o.numero)}${o.veiculo&&o.veiculo.placa?' ('+esc(placaFmt(o.veiculo.placa))+')':''}?${f?' As parcelas em aberto em Contas a receber serão apagadas e os produtos voltam para o estoque.':''} Isso não pode ser desfeito.`,'Excluir',async()=>{
     const ok=await guard((async()=>{if(f){for(const id of f.lancIds||[])await S.db.doc('lancamentos/'+id).delete();
       for(const bx of f.baixas||[]){const pc=pecaById(bx.pecaId);if(pc)await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)+bx.qtd})}}
       await S.db.doc('os/'+o.id).delete()})(),'OS excluída');if(ok&&noEditor){UI.os.edit=null;UI.os.dirty=false}if(ok)render()})}
@@ -1456,8 +1456,8 @@ function osImprimir(o){const v=o.veiculo||{},t=osTot(o),cl=S.clientes.find(c=>c.
   <div class="pr-row"><div class="pr-box"><h4>Entrada</h4>${dtBR(o.entrada)}</div><div class="pr-box"><h4>Previsão</h4>${dtBR(o.previsao)}</div><div class="pr-box"><h4>Saída</h4>${dtBR(o.saida)}</div><div class="pr-box"><h4>Situação</h4>${OS_L[o.status]?.l||''}</div></div>
   ${o.relato?`<h3>Relato do cliente</h3><p>${esc(o.relato).replace(/\n/g,'<br>')}</p>`:''}${o.diagnostico?`<h3>Diagnóstico / serviço executado</h3><p>${esc(o.diagnostico).replace(/\n/g,'<br>')}</p>`:''}
   <h3>Serviços</h3><table class="pr-t"><thead><tr><th>Descrição</th><th class="r">Horas</th><th class="r">Valor</th></tr></thead><tbody>${(o.servicos||[]).filter(s=>s.desc||+s.valor).map(s=>`<tr><td>${esc(s.desc)}</td><td class="r">${esc(s.horas||'')}</td><td class="r">${fmt(s.valor)}</td></tr>`).join('')||'<tr><td colspan="3">—</td></tr>'}</tbody></table>
-  ${(o.pecas||[]).length?`<h3>Peças</h3><table class="pr-t"><thead><tr><th>Código</th><th>Descrição</th><th class="r">Qtd</th><th class="r">Unitário</th><th class="r">Subtotal</th></tr></thead><tbody>${o.pecas.map(p=>`<tr><td>${esc(p.codigo||'')}</td><td>${esc(p.desc)}</td><td class="r">${esc(p.qtd)}</td><td class="r">${fmt(p.unit)}</td><td class="r">${fmt((+p.qtd||0)*(+p.unit||0))}</td></tr>`).join('')}</tbody></table>`:''}
-  <table class="pr-tot"><tr><td>Serviços</td><td class="r">${fmt(t.sv)}</td></tr><tr><td>Peças</td><td class="r">${fmt(t.pc)}</td></tr>${t.de?`<tr><td>Desconto</td><td class="r">−${fmt(t.de)}</td></tr>`:''}<tr class="b"><td>Total</td><td class="r">${fmt(t.total)}</td></tr></table>
+  ${(o.pecas||[]).length?`<h3>Produtos</h3><table class="pr-t"><thead><tr><th>Código</th><th>Descrição</th><th class="r">Qtd</th><th class="r">Unitário</th><th class="r">Subtotal</th></tr></thead><tbody>${o.pecas.map(p=>`<tr><td>${esc(p.codigo||'')}</td><td>${esc(p.desc)}</td><td class="r">${esc(p.qtd)}</td><td class="r">${fmt(p.unit)}</td><td class="r">${fmt((+p.qtd||0)*(+p.unit||0))}</td></tr>`).join('')}</tbody></table>`:''}
+  <table class="pr-tot"><tr><td>Serviços</td><td class="r">${fmt(t.sv)}</td></tr><tr><td>Produtos</td><td class="r">${fmt(t.pc)}</td></tr>${t.de?`<tr><td>Desconto</td><td class="r">−${fmt(t.de)}</td></tr>`:''}<tr class="b"><td>Total</td><td class="r">${fmt(t.total)}</td></tr></table>
   ${o.obs?`<h3>Observações</h3><p>${esc(o.obs).replace(/\n/g,'<br>')}</p>`:''}
   <div class="pr-sign"><div><span></span>Responsável Dtruck Center${o.mecanico?'<br>'+esc(o.mecanico):''}</div><div><span></span>Cliente<br>Data: ____/____/______</div></div>`)}
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;if(!a.startsWith('os-'))return;
@@ -1691,7 +1691,7 @@ function myPassword(){
   async d=>{if(d.password!==d.password2){toast('As senhas não são iguais.');return false}
     try{await DtruckAPI.changePassword(d.current,d.password);toast('Senha alterada');}catch(e){toast(e.message||'Não foi possível alterar a senha.');return false}});
 }
-const MODS=[['painel','Painel',1],['pagar','Contas a pagar'],['receber','Contas a receber'],['os','Ordens de serviço'],['lancamentos','Entradas e saídas'],['notas','Importar notas'],['fluxo','Fluxo de caixa',1],['dre','DRE',1],['clientes','Clientes'],['pecas','Peças'],['entrada','Entrada de mercadoria'],['laudos','Laudos']];
+const MODS=[['painel','Painel',1],['pagar','Contas a pagar'],['receber','Contas a receber'],['os','Ordens de serviço'],['lancamentos','Entradas e saídas'],['notas','Importar notas'],['fluxo','Fluxo de caixa',1],['dre','DRE',1],['clientes','Clientes'],['pecas','Produtos'],['entrada','Entrada de mercadoria'],['laudos','Laudos']];
 const PRESETS={tudo:Object.fromEntries(MODS.map(([k,,v])=>[k,v?'ver':'editar'])),consulta:Object.fromEntries(MODS.map(([k])=>[k,'ver'])),
   estoque:{pecas:'editar',entrada:'editar',notas:'ver'},financeiro:{painel:'ver',pagar:'editar',receber:'editar',os:'ver',lancamentos:'editar',fluxo:'ver',dre:'ver',clientes:'ver'},oficina:{os:'editar',laudos:'editar',clientes:'editar',pecas:'ver'}};
 function can(mod,lvl='ver'){const me=DtruckAPI.me&&DtruckAPI.me();if(!me)return false;if(me.role==='admin')return true;if(mod==='usuarios'||mod==='config')return false;const P=me.perms||{};
@@ -1767,7 +1767,7 @@ document.addEventListener('click',e=>{
   switch(b.dataset.act){
     case 'new-lanc': return lancForm({tipo:b.dataset.tipo,categoria:b.dataset.tipo==='entrada'?'venda_pecas':'compra_pecas',pago:true,forma:'PIX'});
     case 'edit-lanc': return lancForm(S.lancs.find(l=>l.id===id));
-    case 'del-lanc': {const l=S.lancs.find(x=>x.id===id);return confirmBox('Excluir lançamento',`Excluir “${esc(l.descricao)}” de ${fmt(l.valor)}?${stockEffect(l)?' O estoque da peça será revertido.':''}`,'Excluir',async()=>{
+    case 'del-lanc': {const l=S.lancs.find(x=>x.id===id);return confirmBox('Excluir lançamento',`Excluir “${esc(l.descricao)}” de ${fmt(l.valor)}?${stockEffect(l)?' O estoque do produto será revertido.':''}`,'Excluir',async()=>{
       const ch={};const a=stockEffect(l);if(a)ch[a.id]=-a.d;await guard((async()=>{await S.db.doc('lancamentos/'+id).delete();await applyStock(ch)})(),'Lançamento excluído')})}
     case 'pay': {const l=S.lancs.find(x=>x.id===id);return openModal(`<h2>${l.tipo==='entrada'?'Registrar recebimento':'Registrar pagamento'}</h2><p>${esc(l.descricao)} · <b>${fmt(l.valor)}</b> · vencimento ${fmtD(l.data)}</p><div class="form"><div class="f"><label for="pg-d">Data</label><input id="pg-d" type="date" name="d" value="${today}"></div><div class="f"><label for="pg-f">Forma</label><select id="pg-f" name="f">${FORMAS.map(f=>`<option ${l.forma===f?'selected':''}>${f}</option>`).join('')}</select></div></div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Confirmar</button></div>`,
       async fd=>guard(S.db.doc('lancamentos/'+id).update({pago:true,dataPagamento:fd.d||today,forma:fd.f}),l.tipo==='entrada'?'Recebimento registrado':'Pagamento registrado'))}
@@ -1775,16 +1775,16 @@ document.addEventListener('click',e=>{
     case 'imp-run': return runImport();
     case 'imp-cancel': UI.imp=null;return render();
     case 'imp-undo': {const n=S.notas.find(x=>x.id===id);if(!n)return;const pagos=(n.lancIds||[]).filter(i=>S.lancs.find(l=>l.id===i)?.pago).length;
-      return confirmBox('Desfazer importação',`Remover a ${esc(n.modelo)} ${esc(n.numero)} (${esc(n.contraparte)}, ${fmt(n.valor)}) e os ${(n.lancIds||[]).length} lançamento(s) criados por ela?${pagos?` <b>${pagos} já está(ão) marcado(s) como pago(s).</b>`:''}${(n.itens||[]).some(i=>i.delta)?' O estoque das peças volta ao que era antes.':''} Clientes e peças cadastrados continuam.`,'Desfazer',async()=>{await guard(undoNota(n),'Importação desfeita')})}
+      return confirmBox('Desfazer importação',`Remover a ${esc(n.modelo)} ${esc(n.numero)} (${esc(n.contraparte)}, ${fmt(n.valor)}) e os ${(n.lancIds||[]).length} lançamento(s) criados por ela?${pagos?` <b>${pagos} já está(ão) marcado(s) como pago(s).</b>`:''}${(n.itens||[]).some(i=>i.delta)?' O estoque dos produtos volta ao que era antes.':''} Clientes e produtos cadastrados continuam.`,'Desfazer',async()=>{await guard(undoNota(n),'Importação desfeita')})}
     case 'new-cli': return cliForm({});
     case 'edit-cli': return cliForm(S.clientes.find(c=>c.id===id));
     case 'del-cli': {const c=S.clientes.find(x=>x.id===id);const n=S.lancs.filter(l=>l.clienteId===id).length;return confirmBox('Excluir cliente',`Excluir <b>${esc(c.nome)}</b>?${n?` Os ${n} lançamento(s) dele continuam no financeiro, sem o nome do cliente.`:''}`,'Excluir',async()=>{await guard(S.db.doc('clientes/'+id).delete(),'Cliente excluído')})}
     case 'new-peca': return pecaForm({});
     case 'edit-peca': return pecaForm(S.pecas.find(p=>p.id===id));
-    case 'del-peca': {const p=S.pecas.find(x=>x.id===id);return confirmBox('Excluir peça',`Excluir <b>${esc(p.codigo)} · ${esc(p.descricao)}</b> do catálogo? Os lançamentos ligados a ela continuam no financeiro.`,'Excluir',async()=>{await guard(S.db.doc('pecas/'+id).delete(),'Peça excluída')})}
+    case 'del-peca': {const p=S.pecas.find(x=>x.id===id);return confirmBox('Excluir produto',`Excluir <b>${esc(p.codigo)} · ${esc(p.descricao)}</b> do catálogo? Os lançamentos ligados a ela continuam no financeiro.`,'Excluir',async()=>{await guard(S.db.doc('pecas/'+id).delete(),'Produto excluído')})}
     case 'saldo-ini': return openModal(`<h2>Saldo inicial de caixa</h2><p class="hint">Quanto havia em caixa e bancos antes do primeiro lançamento registrado aqui.</p><div class="form"><div class="f w6"><label for="si">Saldo inicial (R$)</label><input id="si" name="v" type="number" step="0.01" value="${S.config.saldoInicial||0}"></div></div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Salvar</button></div>`,
       async fd=>guard(S.db.doc('config/geral').set({...S.config,saldoInicial:r2(+fd.v||0),exemplo:false}),'Saldo inicial atualizado'));
-    case 'clear-ex': return confirmBox('Apagar dados de exemplo','Isso remove todos os clientes, peças e lançamentos marcados como exemplo. Os registros que você criou continuam.','Apagar exemplos',async()=>{
+    case 'clear-ex': return confirmBox('Apagar dados de exemplo','Isso remove todos os clientes, produtos e lançamentos marcados como exemplo. Os registros que você criou continuam.','Apagar exemplos',async()=>{
       const all=[...S.lancs.filter(x=>x.exemplo).map(x=>'lancamentos/'+x.id),...S.clientes.filter(x=>x.exemplo).map(x=>'clientes/'+x.id),...S.pecas.filter(x=>x.exemplo).map(x=>'pecas/'+x.id)];
       await guard((async()=>{for(const p of all)await S.db.doc(p).delete();if(S.config.exemplo)await S.db.doc('config/geral').set({...S.config,saldoInicial:0,exemplo:false})})(),'Dados de exemplo apagados')});
   }

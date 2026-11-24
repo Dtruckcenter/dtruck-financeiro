@@ -1,6 +1,6 @@
 # Dtruck Financeiro
 
-Sistema de gestão financeira da Dtruck Center: entradas e saídas, importação de notas fiscais (NF-e, NFC-e, NFS-e), fluxo de caixa, DRE, painel, cadastro de clientes e de peças com controle de estoque.
+Sistema de gestão financeira da Dtruck Center: entradas e saídas, importação de notas fiscais (NF-e, NFC-e, NFS-e), fluxo de caixa, DRE, painel, cadastro de clientes e de produtos com controle de estoque.
 
 - `public/`: telas (embutidas no Worker no deploy)
   - `index.html`: o sistema
