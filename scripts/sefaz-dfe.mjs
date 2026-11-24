@@ -108,7 +108,7 @@ function eventoCiencia(chave, cert) {
   sig.computeSignature(xml, { location: { reference: "//*[local-name(.)='infEvento']", action: 'after' } });
   return sig.getSignedXml();
 }
-async function enviarCiencia(chaves, cert) {
+async function enviarCiencia(chaves, cert, recusadas = []) {
   const ok = [];
   for (let i = 0; i < chaves.length; i += 20) {
     const lote = chaves.slice(i, i + 20);
@@ -120,7 +120,7 @@ async function enviarCiencia(chaves, cert) {
     for (const ev of all(ret, 'retEvento')) {
       const cs = txt(ev, 'cStat'), ch = txt(ev, 'chNFe');
       if (['135', '136', '573'].includes(cs)) ok.push(ch);        // registrado / vinculado / já registrado
-      else log(`  ${ch}: ${cs} ${txt(ev, 'xMotivo')}`);
+      else { recusadas.push({ chave: ch, msg: `${cs} ${txt(ev, 'xMotivo')}` }); if (cs !== '596') log(`  ${ch}: ${cs} ${txt(ev, 'xMotivo')}`); }
     }
   }
   return ok;
@@ -193,13 +193,13 @@ async function main() {
   const estado = await er.json();
   log(`Último NSU: ${estado.ultNSU} · sem ciência: ${estado.semCiencia.length} · sem XML: ${estado.semXml.length} · fila: ${estado.fila.length}`);
 
-  const lote = { docs: [], ciencia: [], buscadas: [], filaRespostas: [], ultNSU: estado.ultNSU, ok: true, status: '' };
+  const lote = { docs: [], ciencia: [], cienciaRecusada: [], buscadas: [], filaRespostas: [], ultNSU: estado.ultNSU, ok: true, status: '' };
   const avisos = [];
   if (cert.dias < 30) avisos.push(`Certificado digital vence em ${cert.dias} dias (${cert.validade}).`);
 
   try {
     // 1) Ciência da Operação para as notas que só chegaram em resumo
-    if (estado.semCiencia.length) lote.ciencia = await enviarCiencia(estado.semCiencia, cert);
+    if (estado.semCiencia.length) lote.ciencia = await enviarCiencia(estado.semCiencia, cert, lote.cienciaRecusada);
 
     // 2) Novos documentos pelo NSU
     let ult = estado.ultNSU, rodadas = 0, fim = false;
@@ -230,7 +230,7 @@ async function main() {
     // resumos recém-chegados (inclusive da fila) recebem ciência já nesta rodada
     const novosResumos = [...new Set(lote.docs.filter(d => !d.xml && d.resumo && d.resumo.situacao === 'autorizada').map(d => d.chave))]
       .filter(ch => !lote.ciencia.includes(ch) && !lote.docs.some(d => d.chave === ch && d.xml));
-    if (novosResumos.length) lote.ciencia.push(...await enviarCiencia(novosResumos, cert));
+    if (novosResumos.length) lote.ciencia.push(...await enviarCiencia(novosResumos, cert, lote.cienciaRecusada));
   } catch (e) {
     lote.ok = false; avisos.push(e.message);
     falha(e.message);
@@ -238,9 +238,29 @@ async function main() {
 
   const completos = lote.docs.filter(d => d.xml).length, resumos = lote.docs.length - completos;
   lote.status = [`${completos} nota(s) completa(s), ${resumos} resumo(s), ${lote.ciencia.length} ciência(s) registrada(s).`, ...avisos].join(' ');
-  const r = await api('/api/robo/lote', { method: 'POST', body: JSON.stringify(lote) });
-  if (!r.ok) throw new Error(`Sistema respondeu ${r.status} ao receber o lote.`);
-  log('Enviado ao sistema: ' + lote.status);
+  // Envio em remessas pequenas (o servidor tem limite de operações por pedido)
+  const post = async body => {
+    for (let t = 1; ; t++) {
+      try { const r = await api('/api/robo/lote', { method: 'POST', body: JSON.stringify(body) }); if (r.ok) return; throw new Error(`HTTP ${r.status}`); }
+      catch (e) { if (t >= 3) throw new Error('Falha ao enviar ao sistema: ' + e.message); await new Promise(r => setTimeout(r, 2000 * t)); }
+    }
+  };
+  // ordem cronológica: o resumo chega antes da nota completa e do cancelamento
+  const docs = lote.docs;
+  for (let k = 0; k < docs.length; k += 3) await post({ docs: docs.slice(k, k + 3) });
+  const marcas = [
+    ...lote.ciencia.map(c => ({ ciencia: [c] })), ...lote.cienciaRecusada.map(c => ({ cienciaRecusada: [c] })),
+    ...lote.buscadas.map(c => ({ buscadas: [c] })), ...lote.filaRespostas.map(c => ({ filaRespostas: [c] })),
+  ];
+  for (let k = 0; k < marcas.length; k += 12) {
+    const m = { ciencia: [], cienciaRecusada: [], buscadas: [], filaRespostas: [] };
+    marcas.slice(k, k + 12).forEach(x => Object.entries(x).forEach(([kk, v]) => m[kk].push(...v)));
+    await post(m);
+  }
+  const recusadas = lote.cienciaRecusada.filter(c => c.msg.startsWith('596')).length;
+  if (recusadas) lote.status += ` ${recusadas} nota(s) com mais de 10 dias: a Receita não libera o XML completo (só o resumo).`;
+  await post({ ultNSU: lote.ultNSU, ok: lote.ok, status: lote.status, final: true });
+  log(`Enviado ao sistema em ${Math.ceil(docs.length / 3) + Math.ceil(marcas.length / 12) + 1} remessa(s): ` + lote.status);
 }
 
 main().catch(async e => {

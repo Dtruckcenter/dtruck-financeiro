@@ -995,6 +995,7 @@ async function lerChave(raw){
   const d=S.dfe.find(x=>x.id===ch);
   if(d&&d.situacao==='cancelada')return entMsg('neg',`A NF ${esc(info.numero)} de ${esc(d.emitNome||fmtDoc(info.cnpj))} foi <b>cancelada</b> pelo fornecedor. Não dê entrada.`);
   if(d&&d.status==='completa')return darEntrada(ch);
+  if(d&&d.cienciaRecusada)return entMsg('pend',`A NF ${esc(info.numero)} de ${esc(d.emitNome||fmtDoc(info.cnpj))} tem mais de 10 dias, e a Receita só entrega o resumo dela. Para dar entrada, importe o XML da nota (enviado pelo fornecedor ou baixado do LocControl) em <a href="#notas">Importar notas</a>.`);
   if(d)return entMsg('pend',`A Receita já informou a NF ${esc(info.numero)} de ${esc(d.emitNome||fmtDoc(info.cnpj))}. A ciência foi registrada e o XML completo chega na próxima consulta (até 1 hora). Bipe de novo depois.`);
   const f=S.dfefila.find(x=>x.id===ch);
   if(f)return entMsg('pend',`Esta nota já foi pedida à Receita.${f.resposta?' Última resposta: '+esc(f.resposta):' Aguardando a próxima consulta (até 1 hora).'}`);
@@ -1020,6 +1021,7 @@ function vEntrada(){
     if(d.situacao==='cancelada')return '<span class="pill late">Cancelada</span>';
     if(r.imp)return '<span class="pill ok">Entrada feita</span>';
     if(d.status==='completa')return '<span class="pill in">Pronta para entrada</span>';
+    if(d.cienciaRecusada)return '<span class="pill info" title="A Receita só libera o XML completo até 10 dias após a emissão">Só resumo</span>';
     return '<span class="pill pend">Aguardando XML</span>'};
   const M=UI.ent.msg;
   const msgCls={ok:'background:var(--pos-soft);border-color:var(--pos)',neg:'background:var(--neg-soft);border-color:var(--neg)',pend:''};

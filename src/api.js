@@ -213,7 +213,7 @@ async function writeDoc(db, col, id, data, deleted, email, action) {
          seq = excluded.seq, updated_at = excluded.updated_at, updated_by = excluded.updated_by`
     ).bind(col, id, deleted ? null : JSON.stringify(data), deleted ? 1 : 0, now, email),
     db.prepare(`INSERT INTO audit (at, email, action, col, doc_id, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
-      .bind(now, email, action, col, id, deleted ? null : JSON.stringify(data)),
+      .bind(now, email, action, col, id, deleted || col === 'dfexml' ? null : JSON.stringify(data)),
   ]);
 }
 
@@ -489,7 +489,7 @@ async function robo(request, env, db, parts, method) {
     return json({
       ultNSU: st.ultNSU || '000000000000000',
       // resumos que ainda não receberam "Ciência da Operação"
-      semCiencia: docs.filter(d => d.status === 'resumo' && !d.ciencia && d.situacao !== 'cancelada').map(d => d.id).slice(0, 40),
+      semCiencia: docs.filter(d => d.status === 'resumo' && !d.ciencia && !d.cienciaRecusada && d.situacao !== 'cancelada').map(d => d.id).slice(0, 40),
       // ciência enviada há mais de 2 h e o XML completo ainda não chegou pelo NSU: buscar pela chave
       semXml: docs.filter(d => d.status === 'resumo' && d.ciencia && agora - d.ciencia > 2 * 3600e3 && (!d.ultimaBusca || agora - d.ultimaBusca > 6 * 3600e3)).map(d => d.id).slice(0, 10),
       // chaves bipadas no sistema que a Receita ainda não entregou
@@ -529,6 +529,10 @@ async function robo(request, env, db, parts, method) {
       const atual = await getDoc('dfe', ch); if (!atual) continue;
       await writeDoc(db, 'dfe', ch, { ...atual, ciencia: agora }, false, BOT, 'update');
     }
+    for (const c of b.cienciaRecusada || []) {
+      const atual = await getDoc('dfe', c.chave); if (!atual) continue;
+      await writeDoc(db, 'dfe', c.chave, { ...atual, cienciaRecusada: String(c.msg || '').slice(0, 200) }, false, BOT, 'update');
+    }
     for (const ch of b.buscadas || []) {
       const atual = await getDoc('dfe', ch);
       if (atual) await writeDoc(db, 'dfe', ch, { ...atual, ultimaBusca: agora }, false, BOT, 'update');
@@ -537,6 +541,7 @@ async function robo(request, env, db, parts, method) {
       const atual = await getDoc('dfefila', f.chave); if (!atual) continue;
       await writeDoc(db, 'dfefila', f.chave, { ...atual, ultimaBusca: agora, resposta: String(f.msg || '').slice(0, 300) }, false, BOT, 'update');
     }
+    if (!b.final && b.ok !== false) return noContent();
     const st = (await getDoc('sys', 'dfe')) || {};
     await writeDoc(db, 'sys', 'dfe', {
       ...st,
