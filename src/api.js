@@ -377,6 +377,35 @@ export async function onRequest({ request, env, params }) {
   return fail(404, 'Rota não encontrada');
 }
 
+// ---------- Contas a pagar automáticas a partir da NF-e do fornecedor ----------
+const TPAG = { '01': 'Dinheiro', '02': 'Cheque', '03': 'Cartão de crédito', '04': 'Cartão de débito', '15': 'Boleto', '16': 'Transferência', '17': 'PIX', '18': 'Transferência' };
+const PAGO_NA_HORA = new Set(['01', '03', '04', '16', '17', '18']);
+async function contasAPagar(db, chave, n, por) {
+  if (n.finNFe && n.finNFe !== '1') return [];            // devolução, complementar, ajuste: sem conta a pagar
+  if (n.operacaoFinanceira === false) return [];          // remessa, comodato, conserto...
+  const data = String(n.dhEmi || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const nome = n.emitNome || n.emitCnpj || 'Fornecedor';
+  const parcelas = (n.parcelas && n.parcelas.length) ? n.parcelas : [{ n: '', venc: data, valor: n.valor }];
+  if (!parcelas.some(p => p.valor > 0)) return [];
+  const semParcelas = !(n.parcelas && n.parcelas.length);
+  const pago = semParcelas && PAGO_NA_HORA.has(n.tPag || '');
+  const forma = TPAG[n.tPag] || (semParcelas ? 'Boleto' : 'Boleto');
+  const ids = [];
+  for (let i = 0; i < parcelas.length; i++) {
+    const p = parcelas[i], id = `nfe${chave}p${i + 1}`;
+    await writeDoc(db, 'lancamentos', id, {
+      tipo: 'saida', descricao: `NF-e ${n.numero} · ${nome}${parcelas.length > 1 ? ` (${i + 1}/${parcelas.length})` : ''}`,
+      data: p.venc || data, categoria: n.categoria || 'compra_pecas', valor: Math.round(p.valor * 100) / 100, forma,
+      documento: `NF-e ${n.numero}${parcelas.length > 1 ? ' parc. ' + (p.n || i + 1) : ''}`,
+      obs: 'Criada automaticamente pela nota do fornecedor baixada da Receita.',
+      pago, dataPagamento: pago ? data : '', clienteId: '', fornecedor: nome, pecaId: '', qtd: 0,
+      notaId: chave, auto: true, exemplo: false, criadoEm: Date.now(),
+    }, false, por, 'set');
+    ids.push(id);
+  }
+  return ids;
+}
+
 // ---------- Robô da Receita (Distribuição DF-e via GitHub Actions) ----------
 async function robo(request, env, db, parts, method) {
   const auth = request.headers.get('authorization') || '';
@@ -419,7 +448,17 @@ async function robo(request, env, db, parts, method) {
         novo.status = 'completa';
         await writeDoc(db, 'dfexml', d.chave, { xml: d.xml }, false, BOT, 'set');
       } else if (!atual.status) novo.status = 'resumo';
-      if (d.resumo && d.resumo.situacao === 'cancelada') novo.situacao = 'cancelada';
+      if (atual.situacao === 'cancelada' || (d.resumo && d.resumo.situacao === 'cancelada')) novo.situacao = 'cancelada';
+      if (novo.situacao === 'cancelada' && atual.lancAuto && atual.lancAuto.length) {
+        // nota cancelada pelo fornecedor: remove as contas a pagar automáticas que ainda não foram pagas
+        for (const id of atual.lancAuto) {
+          const l = await getDoc('lancamentos', id);
+          if (l && !l.pago) await writeDoc(db, 'lancamentos', id, null, true, BOT, 'delete');
+        }
+        novo.lancAuto = [];
+      }
+      if (novo.status === 'completa' && novo.situacao !== 'cancelada' && !(atual.lancAuto && atual.lancAuto.length) && !(await getDoc('notas', d.chave)))
+        novo.lancAuto = await contasAPagar(db, d.chave, novo, BOT);
       await writeDoc(db, 'dfe', d.chave, novo, false, BOT, 'set');
       if (novo.status === 'completa') await writeDoc(db, 'dfefila', d.chave, null, true, BOT, 'delete');
     }

@@ -31,6 +31,8 @@ const CNPJ = String(env.DTRUCK_CNPJ || '').replace(/\D/g, '');
 const UF_COD = UF[String(env.DTRUCK_UF || '').toUpperCase()] || Number(env.DTRUCK_UF);
 const API = String(env.API_URL || '').replace(/\/$/, '');
 const MAX_LOOPS = 15;
+// CFOPs (3 últimos dígitos) que envolvem pagamento: compras, ativo, uso e consumo, serviços (mesma lista do sistema)
+const CFOP_FIN = new Set(['101','102','103','104','105','106','107','108','109','110','111','112','113','114','115','116','117','118','119','120','122','123','124','125','126','128','401','402','403','404','405','406','407','408','551','556','653','933']);
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 function falha(msg) { console.error('ERRO: ' + msg); process.exitCode = 1; }
@@ -149,7 +151,13 @@ function interpretar(d, saida) {
     const ch = (inf && inf.getAttribute('Id') || '').replace(/^NFe/, '') || txt(x, 'chNFe');
     const emit = first(x, 'emit');
     if (txt(emit, 'CNPJ') === CNPJ) return;   // nota emitida pela própria Dtruck: não é entrada de fornecedor
-    saida.push({ chave: ch, xml: d.xml, resumo: { ...chaveInfo(ch), emitCnpj: txt(emit, 'CNPJ') || txt(emit, 'CPF'), emitNome: txt(emit, 'xNome'), dhEmi: txt(x, 'dhEmi'), valor: num(txt(first(x, 'ICMSTot'), 'vNF')), situacao: 'autorizada', nsu: d.nsu } });
+    // parcelas (duplicatas) e forma de pagamento: viram contas a pagar no sistema
+    const parcelas = all(x, 'dup').map(u => ({ n: txt(u, 'nDup'), venc: txt(u, 'dVenc'), valor: num(txt(u, 'vDup')) })).filter(p => p.valor > 0);
+    const cfops = [...new Set(all(x, 'CFOP').map(c => String(c.textContent).trim()))];
+    const categoria = cfops.length && cfops.every(c => c.endsWith('551')) ? 'investimento'
+      : cfops.length && cfops.every(c => c.endsWith('556')) ? 'outras_desp' : 'compra_pecas';
+    const operacaoFinanceira = cfops.some(c => CFOP_FIN.has(c.slice(1)));
+    saida.push({ chave: ch, xml: d.xml, resumo: { ...chaveInfo(ch), emitCnpj: txt(emit, 'CNPJ') || txt(emit, 'CPF'), emitNome: txt(emit, 'xNome'), dhEmi: txt(x, 'dhEmi'), valor: num(txt(first(x, 'ICMSTot'), 'vNF')), situacao: 'autorizada', nsu: d.nsu, parcelas, tPag: txt(first(x, 'pag'), 'tPag'), categoria, cfops, finNFe: txt(x, 'finNFe'), operacaoFinanceira } });
   } else if (d.schema.startsWith('resEvento') || d.schema.startsWith('procEventoNFe')) {
     const tp = txt(x, 'tpEvento'), ch = txt(x, 'chNFe');
     if (tp === '110111' && ch) saida.push({ chave: ch, resumo: { ...chaveInfo(ch), situacao: 'cancelada' } });

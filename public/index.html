@@ -765,7 +765,8 @@ function impPreview(){
     if(n.kind==='cancel')return `<tr class="${n.incluir?'':'off'}"><td><input type="checkbox" data-imp="chk" data-i="${ix}" ${n.incluir?'checked':''} ${n.status!=='desfazer'?'disabled':''} aria-label="Incluir"></td><td colspan="2">Evento de cancelamento<div class="hint">${esc(n.chave)}</div></td><td colspan="4">${n.status==='desfazer'?'Vai desfazer a importação desta nota (lançamentos e estoque).':n.status==='junto'?'A nota cancelada veio no mesmo lote e não será importada.':'Nota não encontrada entre as importadas.'}</td><td>${STATUS_PILL[n.status]}</td></tr>`;
     const cats=CATS.filter(c=>c.tipo===(n.tipo||'entrada')).map(c=>`<option value="${c.id}" ${n.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
     const itensHtml=n.itens.length&&stockCat(n)&&n.tipo?`<details class="items"><summary>${n.itens.length} item(ns) · ${n.itens.filter(i=>i.map==='new').length} peça(s) nova(s) no cadastro</summary><div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th class="num">Qtd</th><th class="num">Unit.</th><th>Peça no cadastro da Dtruck</th></tr></thead><tbody>${n.itens.map((i,j)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.descricao)}</td><td class="num">${i.qtd}</td><td class="num">${fmt(i.unit)}</td><td><select data-imp="map" data-i="${ix}" data-j="${j}" aria-label="Peça correspondente"><option value="new" ${i.map==='new'?'selected':''}>+ Cadastrar como peça nova</option><option value="none" ${i.map==='none'?'selected':''}>Não controlar estoque</option>${pecaOpts.replace(`value="${i.map}"`,`value="${i.map}" selected`)}</select></td></tr>`).join('')}</tbody></table></div></details>`:(n.servico?`<div class="hint">${esc(n.servico.slice(0,120))}</div>`:'');
-    const parc=n.dups.length?`${n.dups.length}x · 1º venc. ${fmtD(n.dups[0].venc)}`:(imp.avista?'À vista (pago na emissão)':'Em aberto, venc. na emissão');
+    const jaAuto=((S.dfe.find(x=>x.id===safeId(n.chave))||{}).lancAuto||[]).filter(id=>S.lancs.some(l=>l.id===id)).length;
+    const parc=jaAuto?`Contas a pagar já criadas pela Receita (${jaAuto})`:n.dups.length?`${n.dups.length}x · 1º venc. ${fmtD(n.dups[0].venc)}`:(imp.avista?'À vista (pago na emissão)':'Em aberto, venc. na emissão');
     return `<tr class="${n.incluir?'':'off'}"><td><input type="checkbox" data-imp="chk" data-i="${ix}" ${n.incluir?'checked':''} ${n.tipo?'':'disabled'} aria-label="Incluir nota"></td>
       <td style="white-space:nowrap"><b>${n.modelo} ${esc(n.numero)}</b>${n.serie?`<div class="hint">Série ${esc(n.serie)}</div>`:''}<div class="hint">${fmtD(n.data)}</div></td>
       <td>${n.tipo?`<span class="pill ${n.tipo==='entrada'?'in':'out'}">${n.tipo==='entrada'?(n.kind==='nfse'?'Serviço prestado':'Venda'):(n.kind==='nfse'?'Serviço tomado':'Compra')}</span>`:'—'}</td>
@@ -860,12 +861,14 @@ async function runImport(){
         const pago=!n.dups.length&&imp.avista;
         const forma=TPAG[n.tPag]||(n.dups.length?'Boleto':'PIX');
         const lancIds=[];
-        for(let p=0;p<parcelas.length;p++){const pc=parcelas[p];const ref=S.db.collection('lancamentos').doc();
+        // contas a pagar já criadas automaticamente quando a nota chegou da Receita: não duplicar
+        const dfeDoc=S.dfe.find(x=>x.id===notaId);const lancAuto=((dfeDoc&&dfeDoc.lancAuto)||[]).filter(id=>S.lancs.some(l=>l.id===id));
+        for(let p=0;!lancAuto.length&&p<parcelas.length;p++){const pc=parcelas[p];const ref=S.db.collection('lancamentos').doc();
           await ref.set({tipo:n.tipo,descricao:`${n.modelo} ${n.numero} · ${n.cp.nome||'sem nome'}${parcelas.length>1?` (${p+1}/${parcelas.length})`:''}`,data:pc.venc||n.data,categoria:n.categoria,valor:r2(pc.valor),forma,
             documento:`${n.modelo} ${n.numero}${parcelas.length>1?' parc. '+(pc.n||p+1):''}`,obs:n.servico?n.servico.slice(0,300):'',pago,dataPagamento:pago?n.data:'',clienteId,fornecedor:n.tipo==='saida'?n.cp.nome:'',pecaId:'',qtd:0,notaId,exemplo:false,criadoEm:Date.now()});
           lancIds.push(ref.id)}
         for(const pid of touched){const u={estoque:est[pid]};if(alias[pid])u.aliases=alias[pid];const it=n.itens.find((i,k)=>itensOut[k].pecaId===pid);if(n.tipo==='saida'&&it&&it.unit)u.custo=r2(it.unit);await S.db.doc('pecas/'+pid).update(u)}
-        await S.db.doc('notas/'+notaId).set({chave:n.chave,modelo:n.modelo,numero:n.numero,serie:n.serie||'',data:n.data,tipo:n.tipo,categoria:n.categoria,contraparte:n.cp.nome||'',contraparteDoc:n.cp.doc||'',valor:n.valor,itens:itensOut,lancIds,clienteId,arquivo:n.arquivo||'',importadoEm:Date.now()});
+        await S.db.doc('notas/'+notaId).set({chave:n.chave,modelo:n.modelo,numero:n.numero,serie:n.serie||'',data:n.data,tipo:n.tipo,categoria:n.categoria,contraparte:n.cp.nome||'',contraparteDoc:n.cp.doc||'',valor:n.valor,itens:itensOut,lancIds,lancAuto,clienteId,arquivo:n.arquivo||'',importadoEm:Date.now()});
         nOk++;
       }catch(err){console.error(err);nErr++;if(err&&(err.code==='invalid_argument'||err.code==='quota_exceeded'))throw err}
     }
