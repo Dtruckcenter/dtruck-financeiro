@@ -6,14 +6,14 @@
 //   DFE_TOKEN      token do robô que consulta a Receita (GitHub Actions); sem ele as rotas /api/robo ficam desligadas
 // Binding D1: DB
 
-const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys', 'os', 'laudos', 'laudofotos', 'categorias']);
+const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys', 'os', 'laudos', 'laudofotos', 'categorias', 'orcamentos']);
 const FORA_DO_SYNC = new Set(['dfexml', 'laudofotos']);   // grandes: baixados só quando abertos
 const ADMIN_ONLY = new Set(['config']);
 const ROBOT_ONLY = new Set(['dfe', 'sys']);          // só o robô da Receita grava aqui
 const CHAVE_RE = /^\d{44}$/;
 const ROLES = new Set(['admin', 'usuario', 'operador', 'leitura']);
 // Módulos do sistema e o que cada nível libera. Nível: '' (sem acesso), 'ver' ou 'editar'.
-const MODULOS = ['painel', 'pagar', 'receber', 'os', 'lancamentos', 'notas', 'fluxo', 'dre', 'clientes', 'pecas', 'entrada', 'laudos'];
+const MODULOS = ['painel', 'orcamentos', 'pagar', 'receber', 'os', 'lancamentos', 'notas', 'fluxo', 'dre', 'clientes', 'pecas', 'entrada', 'laudos'];
 const SO_VER = new Set(['painel', 'fluxo', 'dre']);
 function permsDe(u) {
   if (u.role === 'admin') return Object.fromEntries(MODULOS.map(m => [m, SO_VER.has(m) ? 'ver' : 'editar']));
@@ -34,8 +34,9 @@ const editaAlgum = (me, ...mods) => mods.some(m => me.perms[m] === 'editar');
 function colecoesVisiveis(me) {
   const c = new Set(['config', 'categorias']);
   if (pode(me, 'painel', 'pagar', 'receber', 'lancamentos', 'fluxo', 'dre') || editaAlgum(me, 'notas')) c.add('lancamentos');
-  if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada', 'os', 'laudos')) c.add('clientes');
-  if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos', 'os')) c.add('pecas');
+  if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada', 'os', 'laudos', 'orcamentos')) c.add('clientes');
+  if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos', 'os', 'orcamentos')) c.add('pecas');
+  if (pode(me, 'orcamentos')) c.add('orcamentos');
   if (pode(me, 'os')) c.add('os');
   if (pode(me, 'laudos')) c.add('laudos');
   if (pode(me, 'notas', 'entrada')) c.add('notas');
@@ -46,8 +47,9 @@ function colecoesVisiveis(me) {
 function podeGravar(me, col, dados) {
   if (me.role === 'admin') return true;
   switch (col) {
-    case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada', 'os', 'laudos');
-    case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos', 'os');
+    case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada', 'os', 'laudos', 'orcamentos');
+    case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos', 'os', 'orcamentos');
+    case 'orcamentos': return editaAlgum(me, 'orcamentos');
     case 'os': return editaAlgum(me, 'os');
     case 'categorias': return editaAlgum(me, 'lancamentos', 'pagar', 'receber');
     case 'laudos': case 'laudofotos': return editaAlgum(me, 'laudos');
@@ -57,6 +59,7 @@ function podeGravar(me, col, dados) {
       if (editaAlgum(me, 'lancamentos', 'notas')) return true;
       // a OS fatura gerando contas a receber ligadas a ela
       if (editaAlgum(me, 'os') && dados.every(d => !d || (d.osId && d.tipo === 'entrada'))) return true;
+      if (editaAlgum(me, 'orcamentos') && dados.every(d => !d || (d.orcId && d.tipo === 'entrada'))) return true;
       return dados.every(d => !d || (d.tipo === 'saida' ? me.perms.pagar === 'editar' : d.tipo === 'entrada' ? me.perms.receber === 'editar' : false));
     default: return false;
   }
@@ -106,6 +109,7 @@ async function ensureSchema(db) {
     // padrões: OS 2026-0001 (recomeça a cada ano); laudo 006 (continua do laudo 005 feito antes do sistema)
     db.prepare(`INSERT OR IGNORE INTO numeracao (tipo, nome, prefixo, com_ano, digitos, reinicia_ano, proximo, ano) VALUES ('os', 'Ordem de serviço', '', 1, 4, 1, 1, 0)`),
     db.prepare(`INSERT OR IGNORE INTO numeracao (tipo, nome, prefixo, com_ano, digitos, reinicia_ano, proximo, ano) VALUES ('laudo', 'Laudo técnico', '', 0, 3, 0, 6, 0)`),
+    db.prepare(`INSERT OR IGNORE INTO numeracao (tipo, nome, prefixo, com_ano, digitos, reinicia_ano, proximo, ano) VALUES ('orcamento', 'Orçamento', 'ORC', 1, 4, 1, 1, 0)`),
   ]);
   schemaReady = true;
 }
@@ -400,7 +404,7 @@ export async function onRequest({ request, env, params }) {
       }) });
     }
     const tipo = parts[1];
-    const modulo = { os: 'os', laudo: 'laudos' }[tipo];
+    const modulo = { os: 'os', laudo: 'laudos', orcamento: 'orcamentos' }[tipo];
     if (!modulo) return fail(404, 'Tipo de documento desconhecido');
     // próximo número: atômico, sem repetir mesmo com duas pessoas salvando juntas
     if (parts.length === 3 && parts[2] === 'proximo' && method === 'POST') {

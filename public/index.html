@@ -152,12 +152,13 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+.orc-acoes{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px}
 .modotab{display:inline-flex;gap:4px;padding:4px;margin-bottom:14px;border-radius:999px;background:var(--glass-bg,var(--surface));border:1px solid var(--glass-border,var(--line))}
 .modotab button{font:700 14px var(--f-body);border:0;background:transparent;color:var(--muted);padding:8px 18px;border-radius:999px;cursor:pointer}
 .modotab button.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 4px 12px rgba(24,168,238,.3)}
 tr.clic{cursor:pointer}tr.clic:hover td{background:rgba(24,168,238,.09)}
 tfoot td{border-top:2px solid var(--line);background:var(--surface-2)}
-main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-del],main.ro [data-act=os-del-list],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
+main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=orc-new],main.ro [data-act=orc-save],main.ro [data-act=orc-del],main.ro [data-act=orc-dup],main.ro [data-act=orc-dup-cur],main.ro [data-act=os-new],main.ro [data-act=os-del],main.ro [data-act=os-del-list],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
 .nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
 .seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .seltab button{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
@@ -294,13 +295,14 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
   html,body{background:#fff!important}
   :root{padding:0!important}
   #print-root{display:block!important;color:#1d2b38;font:9.5pt/1.55 "Open Sans",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .pr-laudo .pr{page:laudo}.pr-os .pr{page:os}
+  .pr-laudo .pr{page:laudo}.pr-os .pr{page:os}.pr-orc .pr{page:orc}
 }
 /* PDFs no padrão do timbrado oficial Dtruck Center (guia visual: #0B2035, #18A8EE, #EAF3F8, Open Sans) */
 @page{size:A4;margin:12mm 14mm 26mm;
   @bottom-left{content:"DTRUCK COMERCIO DE PEÇAS LTDA  |  CNPJ 53.995.291/0001-61\A DTRUCKCENTER.CONTRATOS@GMAIL.COM";white-space:pre;font:8pt "Open Sans",Arial,sans-serif;color:#4a5a6a;vertical-align:top;padding-top:3mm;border-top:2px solid #18A8EE}
   @bottom-right{content:"Página " counter(page) " de " counter(pages);font:8pt "Open Sans",Arial,sans-serif;color:#4a5a6a;vertical-align:top;padding-top:3mm;border-top:2px solid #18A8EE}}
 @page laudo{@bottom-right{content:"Laudo técnico  ·  Página " counter(page) " de " counter(pages)}}
+@page orc{@bottom-right{content:"Orçamento  ·  Página " counter(page) " de " counter(pages)}}
 @page os{@bottom-right{content:"Ordem de serviço  ·  Página " counter(page) " de " counter(pages)}}
 #print-root{font-family:"Open Sans",Arial,sans-serif!important;color:#0B2035}
 .pr{font:9.5pt/1.55 "Open Sans",Arial,sans-serif;color:#1d2b38}
@@ -343,6 +345,7 @@ input,select,textarea{background:var(--glass-bg-strong);border-color:var(--glass
     <nav class="menu" id="menu">
       <a href="#painel" data-v="painel">Painel</a>
       <div class="navgrp" data-g="fin"><button type="button" class="grp-t" aria-expanded="true"><span>Financeiro</span><svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="grp-b">
+        <a href="#orcamentos" data-v="orcamentos">Orçamentos</a>
         <a href="#pagar" data-v="pagar" id="nav-pagar">Contas a pagar</a>
         <a href="#receber" data-v="receber" id="nav-receber">Contas a receber</a>
         <a href="#os" data-v="os" id="nav-os">Ordens de serviço</a>
@@ -432,7 +435,7 @@ const mesLabel = ym=>{const [y,m]=ym.split('-');return MESES_L[+m-1]+' de '+y};
 function nice(v){if(v<=0)return 1;const p=10**Math.floor(Math.log10(v));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
 
 // ---------- Estado ----------
-const S = {clientes:[],pecas:[],lancs:[],notas:[],os:[],laudos:[],categorias:[],dfe:[],dfefila:[],sys:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
+const S = {clientes:[],pecas:[],lancs:[],notas:[],os:[],laudos:[],categorias:[],orcamentos:[],dfe:[],dfefila:[],sys:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
 const UI = {view:'painel',mes:thisMonth,ano:+today.slice(0,4),lf:{mes:thisMonth,tipo:'',status:'',cat:'',q:''},cq:'',pq:'',pf:''};
 try{const s=JSON.parse(localStorage.getItem('dtruck-ui')||'{}');if(s.mes)UI.mes=s.mes;}catch(e){}
 const saveUI = ()=>{try{localStorage.setItem('dtruck-ui',JSON.stringify({mes:UI.mes}))}catch(e){}};
@@ -491,7 +494,7 @@ function lineChart(points){ // [{lbl,v,proj}]
 }
 
 // ---------- Views ----------
-const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios,entrada:vEntrada,os:vOS,laudos:vLaudos,config:vConfig,pagar:()=>vContas('saida'),receber:()=>vContas('entrada')};
+const VIEWS = {painel:vPainel,lancamentos:vLancs,notas:vNotas,fluxo:vFluxo,dre:vDre,clientes:vClientes,pecas:vPecas,usuarios:vUsuarios,entrada:vEntrada,os:vOS,laudos:vLaudos,config:vConfig,orcamentos:vOrcamentos,pagar:()=>vContas('saida'),receber:()=>vContas('entrada')};
 function render(){
   document.querySelectorAll('#menu a').forEach(a=>a.classList.toggle('on',a.dataset.v===UI.view));
   const m=$('#main');
@@ -1393,7 +1396,7 @@ function imprimir(tipo,corpo){
 }
 // Ctrl+P com uma OS ou um laudo aberto também sai no timbrado; nas outras telas imprime a própria tela
 window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('imprimindo'))return;
-  UI.soMontar=true;try{if(UI.view==='os'&&UI.os.edit)osImprimir(osLimpo(UI.os.edit));else if(UI.view==='laudos'&&UI.laudo.edit)laudoImprimir(UI.laudo.edit)}finally{UI.soMontar=false}});
+  UI.soMontar=true;try{if(UI.view==='orcamentos'&&UI.orc.edit)orcImprimir(UI.orc.edit);else if(UI.view==='os'&&UI.os.edit)osImprimir(osLimpo(UI.os.edit));else if(UI.view==='laudos'&&UI.laudo.edit)laudoImprimir(UI.laudo.edit)}finally{UI.soMontar=false}});
 window.addEventListener('afterprint',()=>document.body.classList.remove('imprimindo'));
 
 // ---------- Ordens de serviço ----------
@@ -1696,6 +1699,7 @@ async function cfgCarregar(){try{UI.cfg.num=(await DtruckAPI.numeracao())}catch(
 const numFmt=(t,n,ano)=>[t.prefixo,t.com_ano?String(ano):'',String(n).padStart(+t.digitos||1,'0')].filter(Boolean).join('-');
 function livro(){const R=[];
   S.os.forEach(o=>R.push({tipo:'os',tl:'Ordem de serviço',numero:o.numero,data:String(o.entrada||'').slice(0,10),cliente:o.clienteNome,placa:o.veiculo&&o.veiculo.placa,sit:OS_L[o.status]?.l||'',sitc:OS_L[o.status]?.c||'info',valor:osTot(o).total,id:o.id}));
+  S.orcamentos.forEach(o=>R.push({tipo:'orcamento',tl:'Orçamento',numero:o.numero,data:o.emissao,cliente:orcCliNome(o),placa:o.veiculo&&o.veiculo.placa,sit:orcVencido(o)?'Vencido':(ORC_L[o.status]?.l||''),sitc:orcVencido(o)?'late':(ORC_L[o.status]?.c||'info'),valor:orcTot(o).total,id:o.id}));
   S.laudos.forEach(l=>R.push({tipo:'laudo',tl:'Laudo técnico',numero:l.numero,data:l.data,cliente:l.clienteNome,placa:l.veiculo&&l.veiculo.placa,sit:l.assunto||'',sitc:'',valor:null,id:l.id}));
   return R.filter(r=>r.numero)}
 function livroTabela(){const f=UI.cfg,q=f.q.trim().toLowerCase();
@@ -1703,7 +1707,7 @@ function livroTabela(){const f=UI.cfg,q=f.q.trim().toLowerCase();
     .sort((a,b)=>a.tipo.localeCompare(b.tipo)||String(b.numero).localeCompare(String(a.numero),undefined,{numeric:true}));
   return `<div class="summary"><span>${R.length} documento(s)</span></div><div class="tw"><table><thead><tr><th>Número</th><th>Documento</th><th>Data</th><th>Cliente</th><th>Caminhão</th><th>Situação / assunto</th><th class="num">Valor</th><th></th></tr></thead><tbody>
   ${R.length?R.map(r=>`<tr><td><b>${esc(r.numero)}</b></td><td>${r.tl}</td><td>${fmtD(r.data)}</td><td>${esc(r.cliente)||'—'}</td><td>${esc(placaFmt(r.placa))||'—'}</td><td>${r.sitc?`<span class="pill ${r.sitc}">${esc(r.sit)}</span>`:`<span class="hint" style="color:var(--ink)">${esc(String(r.sit).slice(0,70))}</span>`}</td><td class="num">${r.valor!=null?fmt(r.valor):'—'}</td>
-    <td><div class="act"><button class="btn sm" data-act="${r.tipo==='os'?'os-open':'lau-open'}" data-id="${r.id}" data-ir="${r.tipo==='os'?'os':'laudos'}">Abrir</button></div></td></tr>`).join('')
+    <td><div class="act"><button class="btn sm" data-act="${{os:'os-open',laudo:'lau-open',orcamento:'orc-open'}[r.tipo]}" data-id="${r.id}" data-ir="${{os:'os',laudo:'laudos',orcamento:'orcamentos'}[r.tipo]}">Abrir</button></div></td></tr>`).join('')
   :'<tr><td colspan="8" class="empty">Nenhum documento numerado ainda.</td></tr>'}</tbody></table></div>`}
 function vConfig(){
   const me=DtruckAPI.me()||{};if(me.role!=='admin')return '<div class="panel empty">Só administradores alteram as configurações.</div>';
@@ -1728,7 +1732,7 @@ function vConfig(){
     </tbody></table></div>
   </div>
   <div class="panel"><h2>Livro de documentos emitidos</h2>
-    <div class="filters"><select id="lv-tipo" aria-label="Tipo de documento"><option value="">Todos os documentos</option><option value="os" ${f.tipo==='os'?'selected':''}>Ordens de serviço</option><option value="laudo" ${f.tipo==='laudo'?'selected':''}>Laudos técnicos</option></select>
+    <div class="filters"><select id="lv-tipo" aria-label="Tipo de documento"><option value="">Todos os documentos</option><option value="orcamento" ${f.tipo==='orcamento'?'selected':''}>Orçamentos</option><option value="os" ${f.tipo==='os'?'selected':''}>Ordens de serviço</option><option value="laudo" ${f.tipo==='laudo'?'selected':''}>Laudos técnicos</option></select>
       <input type="month" id="lv-mes" value="${f.mes}" aria-label="Mês"><input type="search" id="lv-q" placeholder="Buscar número, cliente ou placa" value="${esc(f.q)}"></div>
     <div id="lv-tab">${livroTabela()}</div>
   </div>`;
@@ -1740,6 +1744,195 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]
     const usados=(tp==='os'?S.os:S.laudos).map(d=>d.numero);const novo=numFmt({...c,prefixo:String(c.prefixo||'').toUpperCase().replace(/[^A-Z0-9]/g,'')},Math.max(1,+c.proximo||1),UI.cfg.num.ano);
     if(usados.includes(novo))confirmBox('Número já usado',`O número <b>${esc(novo)}</b> já existe em um documento. Se salvar assim, o próximo documento sairá repetido. Deseja salvar mesmo assim?`,'Salvar mesmo assim',salvar);else salvar()}
   if(b.dataset.ir&&UI.view==='config'){location.hash='#'+b.dataset.ir}});
+
+
+// ---------- Orçamentos ----------
+const ORC_ST=[['rascunho','Rascunho','info'],['enviado','Enviado','pend'],['aprovado','Aprovado','ok'],['recusado','Recusado','late']];
+const ORC_L=Object.fromEntries(ORC_ST.map(([k,l,c])=>[k,{l,c}]));
+const COND=[['À vista','0'],['Entrada + 30 dias','0/30'],['15 dias','15'],['28 dias','28'],['30 dias','30'],['30/60 dias','30/60'],['30/60/90 dias','30/60/90'],['28/56/84 dias','28/56/84'],['Personalizada','']];
+const orcValidade=o=>addDias(o.emissao||today,+o.validadeDias||0);
+const orcVencido=o=>['rascunho','enviado'].includes(o.status)&&orcValidade(o)<today;
+const orcPill=o=>orcVencido(o)?'<span class="pill late">Vencido</span>':`<span class="pill ${ORC_L[o.status]?.c||'info'}">${ORC_L[o.status]?.l||esc(o.status||'')}</span>`;
+const n2=v=>+String(v??'').replace(',','.')||0;
+function orcTot(o){const it=o.itens||[];const sp=r2(sum(it.filter(i=>i.tipo!=='S'),i=>n2(i.qtd)*n2(i.unit))),ss=r2(sum(it.filter(i=>i.tipo==='S'),i=>n2(i.qtd)*n2(i.unit)));
+  const bruto=r2(sp+ss),de=r2(o.descontoTipo==='%'?bruto*n2(o.desconto)/100:n2(o.desconto)),fr=r2(n2(o.frete));return {sp,ss,bruto,de,fr,total:r2(bruto-de+fr)}}
+const prazosLista=t=>String(t||'').split(/[\/;,\s]+/).map(x=>parseInt(x,10)).filter(x=>!isNaN(x)&&x>=0);
+UI.orc={st:'abertos',q:'',edit:null,dirty:false};
+function orcNovo(pre){const id=S.db.collection('orcamentos').doc().id;
+  UI.orc.edit={id,_novo:true,numero:'',status:'rascunho',emissao:today,validadeDias:7,clienteId:'',contato:'',veiculo:{placa:'',modelo:'',frota:'',km:''},
+    itens:[{tipo:'P',pecaId:'',codigo:'',desc:'',un:'UN',qtd:1,unit:''}],desconto:'',descontoTipo:'R$',frete:'',pagamento:{cond:'À vista',prazos:'0',forma:'PIX'},prazo:'',garantia:'90 dias para serviços executados e conforme fabricante para produtos.',obs:'',...(pre||{})};
+  UI.orc.dirty=false;location.hash='#orcamentos';render();window.scrollTo(0,0)}
+function vOrcamentos(){
+  if(UI.orc.edit)return orcEditor();
+  const f=UI.orc,L=S.orcamentos;
+  const abertos=L.filter(o=>['rascunho','enviado'].includes(o.status)&&!orcVencido(o));
+  const mes=L.filter(o=>String(o.emissao||'').startsWith(thisMonth));
+  const aprovMes=mes.filter(o=>o.status==='aprovado'),decididos=mes.filter(o=>['aprovado','recusado'].includes(o.status));
+  const vencendo=abertos.filter(o=>orcValidade(o)<=addDias(today,2));
+  afterHooks.push(()=>{let t;const i=$('#orq');i.oninput=()=>{clearTimeout(t);t=setTimeout(()=>{f.q=i.value;$('#orc-tab').innerHTML=orcTabela()},200)}});
+  const tabs=[['abertos','Em aberto'],['rascunho','Rascunho'],['enviado','Enviado'],['aprovado','Aprovado'],['recusado','Recusado'],['vencido','Vencido'],['todos','Todos']];
+  return `<div class="head"><div><h1>Orçamentos</h1><p class="sub">Propostas para clientes, com condição de pagamento, validade e conversão em OS ou venda.</p></div><div class="tools"><button class="btn pri" data-act="orc-new">+ Novo orçamento</button></div></div>
+  <div class="kpis">
+    <div class="kpi click ${f.st==='abertos'?'hl':''}" data-act="orc-st" data-st="abertos" role="button" tabindex="0"><span class="lbl">Em aberto</span><span class="val">${fmt(sum(abertos,o=>orcTot(o).total))}</span><span class="note">${abertos.length} orçamento(s) aguardando o cliente</span></div>
+    <div class="kpi"><span class="lbl">Vencem em até 2 dias</span><span class="val ${vencendo.length?'neg':''}">${vencendo.length}</span><span class="note">vale cobrar uma resposta</span></div>
+    <div class="kpi click ${f.st==='aprovado'?'hl':''}" data-act="orc-st" data-st="aprovado" role="button" tabindex="0"><span class="lbl">Aprovados em ${MESES_L[+thisMonth.slice(5)-1]}</span><span class="val pos">${fmt(sum(aprovMes,o=>orcTot(o).total))}</span><span class="note">${aprovMes.length} orçamento(s)</span></div>
+    <div class="kpi"><span class="lbl">Taxa de aprovação no mês</span><span class="val">${decididos.length?Math.round(aprovMes.length/decididos.length*100)+'%':'—'}</span><span class="note">${decididos.length} decidido(s) · ${mes.length} emitido(s)</span></div>
+  </div>
+  <div class="seltab">${tabs.map(([k,l])=>`<button type="button" class="${f.st===k?'on':''}" data-act="orc-st" data-st="${k}">${l}</button>`).join('')}</div>
+  <div class="filters"><input type="search" id="orq" placeholder="Buscar número, cliente, placa ou item" value="${esc(f.q)}"></div>
+  <div id="orc-tab">${orcTabela()}</div>`;
+}
+function orcCliNome(o){const c=S.clientes.find(x=>x.id===o.clienteId);return c?(c.fantasia||c.nome):(o.cliente&&o.cliente.nome)||''}
+function orcTabela(){const f=UI.orc,q=f.q.trim().toLowerCase();
+  const R=S.orcamentos.filter(o=>{const v=orcVencido(o);
+      if(f.st==='abertos'&&!(['rascunho','enviado'].includes(o.status)&&!v))return false;if(f.st==='vencido'&&!v)return false;
+      if(['rascunho','enviado'].includes(f.st)&&(o.status!==f.st||v))return false;if(['aprovado','recusado'].includes(f.st)&&o.status!==f.st)return false;
+      return !q||[o.numero,orcCliNome(o),o.veiculo&&o.veiculo.placa,...(o.itens||[]).map(i=>i.desc)].join(' ').toLowerCase().includes(q)})
+    .sort((a,b)=>String(b.numero).localeCompare(String(a.numero),undefined,{numeric:true}));
+  return `<div class="tw"><table><thead><tr><th>Orçamento</th><th>Emissão</th><th>Cliente</th><th>Caminhão</th><th>Validade</th><th>Pagamento</th><th>Situação</th><th class="num">Total</th><th></th></tr></thead><tbody>
+  ${R.length?R.map(o=>{const t=orcTot(o),v=o.veiculo||{};return `<tr><td><b>${esc(o.numero)}</b>${o.osId?'<div class="hint">virou OS</div>':''}${o.faturado?'<div class="hint">faturado</div>':''}</td><td>${fmtD(o.emissao)}</td><td>${esc(orcCliNome(o))||'—'}</td><td>${esc(placaFmt(v.placa))||'—'}<div class="hint">${esc(v.modelo||'')}</div></td>
+    <td>${fmtD(orcValidade(o))}</td><td class="hint" style="color:var(--ink)">${esc(o.pagamento&&o.pagamento.cond||'')}</td><td>${orcPill(o)}</td><td class="num"><b>${fmt(t.total)}</b></td>
+    <td><div class="act"><button class="btn sm" data-act="orc-open" data-id="${o.id}">Abrir</button><button class="btn sm ghost" data-act="orc-print" data-id="${o.id}">Imprimir</button><button class="btn sm ghost" data-act="orc-dup" data-id="${o.id}">Duplicar</button>${can('orcamentos','editar')?`<button class="btn sm ghost danger" data-act="orc-del" data-id="${o.id}">Excluir</button>`:''}</div></td></tr>`}).join('')
+  :`<tr><td colspan="9" class="empty">${S.orcamentos.length?'Nenhum orçamento nesta situação.':'Nenhum orçamento ainda. Clique em “+ Novo orçamento”.'}</td></tr>`}</tbody></table></div>`}
+function orcEditor(){
+  const o=UI.orc.edit,ro=!can('orcamentos','editar'),dis=ro?'disabled':'',v=o.veiculo||{},pg=o.pagamento||{},cl=S.clientes.find(c=>c.id===o.clienteId);
+  const travado=!!(o.faturado||o.osId);
+  const inp=(path,lbl,cls='w2',extra='')=>`<div class="f ${cls}"><label for="of-${path}">${lbl}</label><input id="of-${path}" data-of="${path}" value="${esc(getPath(o,path)??'')}" ${extra} ${dis}></div>`;
+  return `<div class="head"><div><h1>${o.numero?'Orçamento '+esc(o.numero):'Novo orçamento'} ${orcPill(o)}</h1><p class="sub">${o._novo?'O número é gerado automaticamente ao salvar.':'Emitido em '+fmtD(o.emissao)+' · válido até '+fmtD(orcValidade(o))}${o.osId?' · virou OS':''}${o.faturado?' · faturado em '+fmtD(o.faturado.em):''}</p></div>
+   <div class="tools"><button class="btn" data-act="orc-back">← Voltar</button>${!o._novo&&!ro?'<button class="btn danger" data-act="orc-del-cur">Excluir</button>':''}${o._novo?'':'<button class="btn" data-act="orc-print-cur">Imprimir / PDF</button><button class="btn" data-act="orc-dup-cur">Duplicar</button>'}<button class="btn pri" data-act="orc-save">Salvar</button></div></div>
+  ${!o._novo&&!ro?`<div class="panel orc-acoes" style="margin-bottom:16px"><span><b>Situação:</b></span>${ORC_ST.map(([k,l])=>`<button type="button" class="btn sm ${o.status===k?'pri':''}" data-act="orc-status" data-st="${k}">${l}</button>`).join('')}
+    <span style="flex:1"></span>${o.status==='aprovado'?`${o.osId?`<a class="btn sm" href="#os" data-act="orc-ver-os">Abrir OS</a>`:(can('os','editar')?'<button type="button" class="btn sm" data-act="orc-gerar-os">Gerar OS</button>':'')}${o.faturado?`<span class="pill ok">Faturado: ${(o.faturado.lancIds||[]).length} parcela(s)</span>`:(o.osId?'':'<button type="button" class="btn sm pri" data-act="orc-faturar">Faturar venda direta</button>')}`:'<span class="hint">Aprove o orçamento para gerar OS ou faturar.</span>'}</div>`:''}
+  <div class="osgrid">
+   <div class="panel"><h2>Cliente</h2><div class="form">
+     <div class="f w6"><label for="of-cli">Cliente</label><div style="display:flex;gap:6px"><select id="of-cli" data-of="clienteId" style="flex:1;min-width:0" ${dis}><option value="">— selecione —</option>${cliOpts(o.clienteId)}</select><button type="button" class="btn sm" data-act="orc-newcli" ${ro?'hidden':''}>+ Novo</button></div></div>
+     ${cl?`<div class="f w6 hint" style="color:var(--ink);line-height:1.6"><b>${esc(cl.nome)}</b>${cl.fantasia?' · '+esc(cl.fantasia):''}<br>${esc(cl.documento||'')}${cl.ie?' · IE '+esc(cl.ie):''}${cl.telefone?' · '+esc(cl.telefone):''}${cl.email?' · '+esc(cl.email):''}<br>${esc(endLinha(cl))}</div>`:''}
+     ${inp('contato','A/C (contato do cliente)','w6','placeholder="Nome de quem pediu o orçamento"')}
+   </div></div>
+   <div class="panel"><h2>Caminhão (opcional)</h2><div class="form">
+     ${inp('veiculo.placa','Placa','w2','style="text-transform:uppercase"')}${inp('veiculo.modelo','Marca / modelo','w4')}${inp('veiculo.frota','Frota','w2')}${inp('veiculo.km','Km','w2','inputmode="numeric"')}
+   </div></div>
+  </div>
+  <div class="panel" style="margin-bottom:16px"><h2>Itens</h2>
+    <datalist id="dl-prod">${S.pecas.slice().sort((a,b)=>String(a.descricao).localeCompare(String(b.descricao),'pt')).map(p=>`<option value="${esc(p.codigo)} — ${esc(p.descricao)}"></option>`).join('')}</datalist>
+    <div class="tw"><table><thead><tr><th style="width:110px">Tipo</th><th>Produto / serviço</th><th style="width:70px">Un</th><th class="num" style="width:90px">Qtd</th><th class="num" style="width:130px">Valor unit.</th><th class="num" style="width:120px">Total</th><th style="width:40px"></th></tr></thead><tbody>
+    ${(o.itens||[]).map((it,i)=>`<tr><td><select data-of="itens.${i}.tipo" data-orc-tipo="${i}" ${dis||(travado?'disabled':'')}><option value="P" ${it.tipo!=='S'?'selected':''}>Produto</option><option value="S" ${it.tipo==='S'?'selected':''}>Serviço</option></select></td>
+      <td>${it.tipo!=='S'?`<input list="dl-prod" data-orc-busca="${i}" value="${esc(it.codigo?it.codigo+' — '+it.desc:it.desc)}" placeholder="Digite o código ou a descrição do produto" style="width:100%" ${dis||(travado?'disabled':'')}>`:`<input data-of="itens.${i}.desc" value="${esc(it.desc)}" placeholder="Descrição do serviço" style="width:100%" ${dis}>`}</td>
+      <td><input data-of="itens.${i}.un" value="${esc(it.un||(it.tipo==='S'?'SV':'UN'))}" style="width:100%" ${dis}></td>
+      <td><input data-of="itens.${i}.qtd" data-orc-n="${i}" value="${esc(it.qtd)}" inputmode="decimal" style="width:100%;text-align:right" ${dis||(travado?'disabled':'')}></td>
+      <td><input data-of="itens.${i}.unit" data-orc-n="${i}" value="${esc(it.unit)}" inputmode="decimal" style="width:100%;text-align:right" ${dis}></td>
+      <td class="num" id="orc-sub-${i}">${fmt(n2(it.qtd)*n2(it.unit))}</td><td>${ro||travado?'':`<button type="button" class="btn sm ghost danger" data-act="orc-rm" data-i="${i}" aria-label="Remover">✕</button>`}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${ro||travado?'':'<div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn sm" data-act="orc-add" data-t="P">+ Produto</button><button type="button" class="btn sm" data-act="orc-add" data-t="S">+ Serviço</button></div>'}
+  </div>
+  <div class="osgrid">
+   <div class="panel"><h2>Condições</h2><div class="form">
+     <div class="f w3"><label for="of-cond">Condição de pagamento</label><select id="of-cond" data-orc-cond="1" ${dis}>${COND.map(([l])=>`<option ${pg.cond===l?'selected':''}>${l}</option>`).join('')}</select></div>
+     <div class="f w3"><label for="of-prazos">Prazos (dias)</label><input id="of-prazos" data-of="pagamento.prazos" value="${esc(pg.prazos||'')}" placeholder="ex.: 0/30/60" ${dis}><span class="hint">0 = à vista. Separe por barra.</span></div>
+     <div class="f w3"><label for="of-forma">Forma de pagamento</label><select id="of-forma" data-of="pagamento.forma" ${dis}>${FORMAS.map(x=>`<option ${pg.forma===x?'selected':''}>${x}</option>`).join('')}</select></div>
+     <div class="f w1"><label for="of-emi">Emissão</label><input id="of-emi" type="date" data-of="emissao" value="${esc(o.emissao)}" ${dis}></div>
+     <div class="f w2"><label for="of-val">Validade (dias)</label><input id="of-val" data-of="validadeDias" value="${esc(o.validadeDias)}" inputmode="numeric" ${dis}></div>
+     ${inp('prazo','Prazo de entrega / execução','w6','placeholder="Ex.: 2 dias úteis após aprovação"')}
+     ${inp('garantia','Garantia','w6')}
+     <div class="f w6"><label for="of-obs">Observações</label><textarea id="of-obs" data-of="obs" rows="3" ${dis}>${esc(o.obs)}</textarea></div>
+   </div></div>
+   <div class="panel"><h2>Valores</h2><div id="orc-tot">${orcTotHtml(o)}</div>
+     <div class="form" style="margin-top:10px">
+       <div class="f w3"><label for="of-desc">Desconto</label><div style="display:flex;gap:6px"><input id="of-desc" data-of="desconto" value="${esc(o.desconto)}" inputmode="decimal" style="flex:1;min-width:0" ${dis}><select data-of="descontoTipo" style="width:70px" ${dis}><option ${o.descontoTipo!=='%'?'selected':''}>R$</option><option ${o.descontoTipo==='%'?'selected':''}>%</option></select></div></div>
+       <div class="f w3"><label for="of-frete">Frete / outros (R$)</label><input id="of-frete" data-of="frete" value="${esc(o.frete)}" inputmode="decimal" ${dis}></div>
+     </div>
+     <div id="orc-parc" class="hint" style="margin-top:10px">${orcParcHtml(o)}</div>
+   </div>
+  </div>`;
+}
+function orcTotHtml(o){const t=orcTot(o);return `<div class="li"><span>Produtos</span><span class="num">${fmt(t.sp)}</span></div><div class="li"><span>Serviços</span><span class="num">${fmt(t.ss)}</span></div>${t.de?`<div class="li"><span>Desconto${o.descontoTipo==='%'?' ('+esc(o.desconto)+'%)':''}</span><span class="num neg">−${fmt(t.de)}</span></div>`:''}${t.fr?`<div class="li"><span>Frete / outros</span><span class="num">${fmt(t.fr)}</span></div>`:''}<div class="li" style="font-size:18px"><b>Total</b><b class="num">${fmt(t.total)}</b></div>`}
+function orcParcelas(o,base){const t=orcTot(o).total,pz=prazosLista(o.pagamento&&o.pagamento.prazos);const n=Math.max(1,pz.length);const v=Math.floor(t/n*100)/100;
+  return (pz.length?pz:[0]).map((d,i)=>({venc:addDias(base||o.emissao||today,d),dias:d,valor:i===n-1?r2(t-v*(n-1)):v}))}
+function orcParcHtml(o){const P=orcParcelas(o);return '<b>Parcelas:</b> '+P.map(p=>`${fmt(p.valor)} ${p.dias?'em '+p.dias+' dias':'à vista'}`).join(' + ')}
+function orcLimpo(o){const c=JSON.parse(JSON.stringify(o));delete c.id;delete c._novo;c.veiculo=c.veiculo||{};c.veiculo.placa=placaFmt(c.veiculo.placa);
+  c.itens=(c.itens||[]).filter(i=>String(i.desc||'').trim()||i.pecaId).map(i=>({tipo:i.tipo==='S'?'S':'P',pecaId:i.tipo==='S'?'':(i.pecaId||''),codigo:i.tipo==='S'?'':(i.codigo||''),desc:String(i.desc||'').trim(),un:String(i.un||'').trim()||(i.tipo==='S'?'SV':'UN'),qtd:n2(i.qtd)||1,unit:r2(n2(i.unit))}));
+  c.desconto=n2(c.desconto);c.frete=r2(n2(c.frete));c.validadeDias=Math.max(0,parseInt(c.validadeDias,10)||0);
+  const cl=S.clientes.find(x=>x.id===c.clienteId);c.cliente=cl?{nome:cl.nome,fantasia:cl.fantasia||'',doc:cl.documento||'',ie:cl.ie||'',tel:cl.telefone||'',email:cl.email||'',end:endLinha(cl)}:(c.cliente||{});
+  c.total=orcTot(c).total;c.criadoEm=c.criadoEm||Date.now();c.atualizadoEm=Date.now();return c}
+async function orcSalvar(silencioso){const o=UI.orc.edit;if(!o.clienteId){toast('Escolha o cliente do orçamento.');return false}
+  if(!(o.itens||[]).some(i=>String(i.desc||'').trim()||i.pecaId)){toast('Inclua pelo menos um produto ou serviço.');return false}
+  if(!o.numero){try{o.numero=(await DtruckAPI.proximoNumero('orcamento')).numero}catch(e){toast(e.message||'Não consegui gerar o número do orçamento.');return false}}
+  const d=orcLimpo(o);const ok=await guard(S.db.doc('orcamentos/'+o.id).set(d),silencioso?null:'Orçamento '+o.numero+' salvo');
+  if(ok){UI.orc.edit={...d,id:o.id};if(!UI.orc.edit.itens.length)UI.orc.edit.itens=[{tipo:'P',pecaId:'',codigo:'',desc:'',un:'UN',qtd:1,unit:''}];UI.orc.dirty=false;render()}return ok}
+function orcImprimir(o0){const o=orcLimpo(o0),t=orcTot(o),c=o.cliente||{},v=o.veiculo||{},pg=o.pagamento||{};
+  imprimir('orc',`<h1 class="pr-title">ORÇAMENTO</h1><p class="pr-sub">Nº ${esc(o.numero)} · emitido em ${fmtD(o.emissao)} · válido até ${fmtD(orcValidade(o))}</p>
+  <div class="pr-row"><div class="pr-box" style="flex:2"><h4>Cliente</h4><b>${esc(c.nome||'')}</b>${c.fantasia?' · '+esc(c.fantasia):''}<div>${esc(c.doc||'')}${c.ie?' · IE '+esc(c.ie):''}</div><div>${esc(c.end||'')}</div><div>${[c.tel,c.email].filter(Boolean).map(esc).join(' · ')}</div>${o.contato?`<div>A/C: <b>${esc(o.contato)}</b></div>`:''}</div>
+   ${v.placa||v.modelo?`<div class="pr-box"><h4>Caminhão</h4><b>${esc(placaFmt(v.placa))}</b> ${esc(v.modelo||'')}<div>${v.frota?'Frota '+esc(v.frota):''}${v.km?' · Km '+esc(v.km):''}</div></div>`:''}</div>
+  <table class="pr-t"><thead><tr><th style="width:12%">Código</th><th>Descrição</th><th style="width:7%">Un</th><th class="r" style="width:8%">Qtd</th><th class="r" style="width:14%">Valor unit.</th><th class="r" style="width:14%">Total</th></tr></thead><tbody>
+  ${o.itens.map(i=>`<tr><td>${esc(i.codigo||(i.tipo==='S'?'Serviço':''))}</td><td>${esc(i.desc)}</td><td>${esc(i.un)}</td><td class="r">${String(i.qtd).replace('.',',')}</td><td class="r">${fmt(i.unit)}</td><td class="r">${fmt(i.qtd*i.unit)}</td></tr>`).join('')}</tbody></table>
+  <table class="pr-tot"><tr><td>Produtos</td><td class="r">${fmt(t.sp)}</td></tr><tr><td>Serviços</td><td class="r">${fmt(t.ss)}</td></tr>${t.de?`<tr><td>Desconto${o.descontoTipo==='%'?' ('+String(o.desconto).replace('.',',')+'%)':''}</td><td class="r">−${fmt(t.de)}</td></tr>`:''}${t.fr?`<tr><td>Frete / outros</td><td class="r">${fmt(t.fr)}</td></tr>`:''}<tr class="b"><td>Total</td><td class="r">${fmt(t.total)}</td></tr></table>
+  <h3>Condições</h3><table class="pr-id"><tr><th>Pagamento</th><td>${esc(pg.cond||'')} · ${esc(pg.forma||'')}</td></tr><tr><th>Parcelas</th><td>${orcParcelas(o).map(p=>`${fmt(p.valor)} ${p.dias?'em '+p.dias+' dias':'à vista'}`).join(' + ')}</td></tr>
+   ${o.prazo?`<tr><th>Prazo</th><td>${esc(o.prazo)}</td></tr>`:''}${o.garantia?`<tr><th>Garantia</th><td>${esc(o.garantia)}</td></tr>`:''}<tr><th>Validade</th><td>Proposta válida até ${fmtD(orcValidade(o))}</td></tr></table>
+  ${o.obs?`<h3>Observações</h3><p>${esc(o.obs).replace(/\n/g,'<br>')}</p>`:''}
+  <div class="pr-sign"><div><span></span>Dtruck Center</div><div><span></span>De acordo — ${esc(c.nome||'Cliente')}<br>Data: ____/____/______</div></div>`)}
+// edição: campos, busca de produto, totais
+document.addEventListener('input',e=>{const el=e.target;if(!UI.orc.edit||!el.dataset)return;const o=UI.orc.edit;
+  if(el.dataset.of){setPath(o,el.dataset.of,el.value);UI.orc.dirty=true;
+    if(el.dataset.orcN!==undefined){const it=o.itens[+el.dataset.orcN];const c=$('#orc-sub-'+el.dataset.orcN);if(c)c.textContent=fmt(n2(it.qtd)*n2(it.unit))}
+    const t=$('#orc-tot');if(t)t.innerHTML=orcTotHtml(o);const pp=$('#orc-parc');if(pp)pp.innerHTML=orcParcHtml(o)}
+  else if(el.dataset.orcBusca!==undefined){const it=o.itens[+el.dataset.orcBusca];const v=el.value;const cod=v.split(' — ')[0].trim();
+    const p=S.pecas.find(x=>String(x.codigo)===cod&&v.includes(' — '))||S.pecas.find(x=>normCod(x.codigo)===normCod(v));
+    UI.orc.dirty=true;if(p){it.pecaId=p.id;it.codigo=p.codigo;it.desc=p.descricao;it.un=p.unidade||'UN';if(!n2(it.unit))it.unit=p.preco||'';render()}else{it.pecaId='';it.codigo='';it.desc=v}}});
+document.addEventListener('change',e=>{const el=e.target;if(!UI.orc.edit||!el.dataset)return;const o=UI.orc.edit;
+  if(el.dataset.orcCond){o.pagamento=o.pagamento||{};o.pagamento.cond=el.value;const c=COND.find(x=>x[0]===el.value);if(c&&c[1]!=='')o.pagamento.prazos=c[1];UI.orc.dirty=true;render()}
+  else if(el.dataset.orcTipo!==undefined){const it=o.itens[+el.dataset.orcTipo];it.tipo=el.value;it.pecaId='';it.codigo='';it.un=el.value==='S'?'SV':'UN';UI.orc.dirty=true;render()}
+  else if(el.dataset.of==='clienteId'||el.dataset.of==='descontoTipo'||el.dataset.of==='pagamento.forma'){setPath(o,el.dataset.of,el.value);UI.orc.dirty=true;if(el.dataset.of!=='pagamento.forma')render()}});
+async function orcGerarOS(){const o=UI.orc.edit;if(UI.orc.dirty&&!await orcSalvar(true))return;
+  const id=S.db.collection('os').doc().id;let numero;try{numero=(await DtruckAPI.proximoNumero('os')).numero}catch(e){toast(e.message||'Não consegui gerar o número da OS.');return}
+  const cl=S.clientes.find(c=>c.id===o.clienteId);
+  const os={numero,status:'aberta',entrada:agoraLocal(),previsao:'',saida:'',clienteId:o.clienteId,clienteNome:cl?cl.nome:'',veiculo:{placa:placaFmt(o.veiculo.placa),marca:'',modelo:o.veiculo.modelo||'',ano:'',km:o.veiculo.km||'',frota:o.veiculo.frota||'',chassi:''},
+    relato:'Conforme orçamento '+o.numero+'.',diagnostico:'',mecanico:'',servicos:o.itens.filter(i=>i.tipo==='S').map(i=>({desc:i.desc,horas:'',valor:r2(n2(i.qtd)*n2(i.unit))})),
+    pecas:o.itens.filter(i=>i.tipo!=='S').map(i=>({pecaId:i.pecaId,codigo:i.codigo,desc:i.desc,qtd:n2(i.qtd),unit:n2(i.unit)})),desconto:orcTot(o).de,obs:o.obs||'',faturado:null,orcId:o.id,criadoEm:Date.now(),atualizadoEm:Date.now()};
+  os.total=osTot(os).total;
+  const ok=await guard((async()=>{await S.db.doc('os/'+id).set(os);await S.db.doc('orcamentos/'+o.id).update({osId:id})})(),'OS '+numero+' criada a partir do orçamento');
+  if(ok){UI.orc.edit.osId=id;UI.os.edit={...os,id};UI.os.dirty=false;UI.orc.edit=null;location.hash='#os'}}
+function orcFaturar(){const o=UI.orc.edit;const P=orcParcelas(o,today);
+  openModal(`<h2>Faturar orçamento ${esc(o.numero)}</h2><p>Gera ${P.length} parcela(s) em Contas a receber pela condição <b>${esc(o.pagamento.cond)}</b>${o.itens.some(i=>i.pecaId)?' e dá baixa no estoque dos produtos':''}.</p>
+    <div class="tw"><table><thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th></tr></thead><tbody>${P.map((p,i)=>`<tr><td>${i+1}/${P.length}</td><td>${fmtD(p.venc)}</td><td class="num">${fmt(p.valor)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="form" style="margin-top:10px"><div class="f w6"><label class="check"><input type="checkbox" name="pago" ${P.length===1&&P[0].dias===0?'checked':''}> Parcela à vista já recebida</label></div></div>
+    <div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">Faturar</button></div>`,async d=>{
+    if(UI.orc.dirty&&!await orcSalvar(true))return false;const o=UI.orc.edit,cl=S.clientes.find(c=>c.id===o.clienteId),ids=[],baixas=[];
+    const cat=o.itens.some(i=>i.tipo!=='S')?'venda_pecas':'servicos';
+    const ok=await guard((async()=>{
+      for(let i=0;i<P.length;i++){const p=P[i],ref=S.db.collection('lancamentos').doc(),pago=!!d.pago&&p.dias===0;
+        await ref.set({tipo:'entrada',descricao:`Orçamento ${o.numero} · ${cl?cl.nome:''}${P.length>1?` (${i+1}/${P.length})`:''}`,data:p.venc,categoria:cat,valor:p.valor,forma:o.pagamento.forma||'Boleto',documento:'ORC '+o.numero+(P.length>1?' parc. '+(i+1):''),obs:'',
+          pago,dataPagamento:pago?today:'',clienteId:o.clienteId,fornecedor:'',pecaId:'',qtd:0,orcId:o.id,exemplo:false,criadoEm:Date.now()});ids.push(ref.id)}
+      for(const it of o.itens){const pc=it.pecaId&&pecaById(it.pecaId);if(pc&&n2(it.qtd)){await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)-n2(it.qtd)});baixas.push({pecaId:pc.id,qtd:n2(it.qtd)})}}
+      const fat={em:today,lancIds:ids,baixas};await S.db.doc('orcamentos/'+o.id).update({faturado:fat});UI.orc.edit.faturado=fat})(),'Orçamento faturado');if(ok)render();return ok})}
+function orcExcluir(o,noEditor){if(!o)return;const f=o.faturado;const pagos=f?(f.lancIds||[]).filter(id=>S.lancs.find(l=>l.id===id&&l.pago)).length:0;
+  if(pagos){toast(`O orçamento ${o.numero} tem ${pagos} parcela(s) já recebida(s). Estorne em Contas a receber antes de excluir.`);return}
+  confirmBox('Excluir orçamento',`Excluir o orçamento ${esc(o.numero||'')}${f?'? As parcelas em aberto serão apagadas e os produtos voltam ao estoque':''}${o.osId?'. A OS gerada a partir dele continua':''}? Isso não pode ser desfeito.`,'Excluir',async()=>{
+    const ok=await guard((async()=>{if(f){for(const id of f.lancIds||[])await S.db.doc('lancamentos/'+id).delete();for(const b of f.baixas||[]){const pc=pecaById(b.pecaId);if(pc)await S.db.doc('pecas/'+pc.id).update({estoque:(+pc.estoque||0)+b.qtd})}}
+      await S.db.doc('orcamentos/'+o.id).delete()})(),'Orçamento excluído');if(ok&&noEditor){UI.orc.edit=null;UI.orc.dirty=false}if(ok)render()})}
+function orcDuplicar(o){const id=S.db.collection('orcamentos').doc().id;const c=JSON.parse(JSON.stringify(o));
+  UI.orc.edit={...c,id,_novo:true,numero:'',status:'rascunho',emissao:today,osId:'',faturado:null,criadoEm:0};UI.orc.dirty=true;location.hash='#orcamentos';render();window.scrollTo(0,0);toast('Cópia criada: ajuste e salve')}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;if(!a.startsWith('orc-'))return;
+  const find=id=>S.orcamentos.find(x=>x.id===id);
+  switch(a){
+    case 'orc-new':orcNovo();break;
+    case 'orc-st':UI.orc.st=b.dataset.st;render();break;
+    case 'orc-open':{const o=JSON.parse(JSON.stringify(find(b.dataset.id)));o.itens=o.itens&&o.itens.length?o.itens:[{tipo:'P',pecaId:'',codigo:'',desc:'',un:'UN',qtd:1,unit:''}];o.veiculo=o.veiculo||{};o.pagamento=o.pagamento||{cond:'À vista',prazos:'0',forma:'PIX'};UI.orc.edit=o;UI.orc.dirty=false;render();window.scrollTo(0,0);break}
+    case 'orc-back':if(UI.orc.dirty){confirmBox('Sair sem salvar?','As alterações deste orçamento ainda não foram salvas.','Sair sem salvar',async()=>{UI.orc.edit=null;UI.orc.dirty=false;render()});break}UI.orc.edit=null;render();break;
+    case 'orc-save':orcSalvar();break;
+    case 'orc-add':UI.orc.edit.itens.push(b.dataset.t==='S'?{tipo:'S',desc:'',un:'SV',qtd:1,unit:''}:{tipo:'P',pecaId:'',codigo:'',desc:'',un:'UN',qtd:1,unit:''});UI.orc.dirty=true;render();
+      setTimeout(()=>{const els=document.querySelectorAll(b.dataset.t==='S'?'[data-of$=".desc"]':'[data-orc-busca]');const last=els[els.length-1];if(last)last.focus()},30);break;
+    case 'orc-rm':UI.orc.edit.itens.splice(+b.dataset.i,1);UI.orc.dirty=true;render();break;
+    case 'orc-status':{const st=b.dataset.st;UI.orc.edit.status=st;UI.orc.dirty=true;await orcSalvar(true);toast('Situação: '+ORC_L[st].l);break}
+    case 'orc-gerar-os':confirmBox('Gerar OS','Criar uma ordem de serviço com o cliente, o caminhão, os serviços e os produtos deste orçamento?','Gerar OS',orcGerarOS);break;
+    case 'orc-ver-os':{e.preventDefault();const os=S.os.find(x=>x.id===UI.orc.edit.osId);if(os){UI.os.edit=JSON.parse(JSON.stringify(os));UI.os.dirty=false}UI.orc.edit=null;location.hash='#os';break}
+    case 'orc-faturar':orcFaturar();break;
+    case 'orc-print':orcImprimir(find(b.dataset.id));break;
+    case 'orc-print-cur':orcImprimir(UI.orc.edit);break;
+    case 'orc-dup':orcDuplicar(find(b.dataset.id));break;
+    case 'orc-dup-cur':orcDuplicar(UI.orc.edit);break;
+    case 'orc-del':orcExcluir(find(b.dataset.id),false);break;
+    case 'orc-del-cur':orcExcluir(find(UI.orc.edit.id)||UI.orc.edit,true);break;
+    case 'orc-newcli':UI.cliCb=id=>{if(UI.orc.edit){UI.orc.edit.clienteId=id;UI.orc.dirty=true;setTimeout(render,300)}};cliForm({});break;
+  }});
 
 // ---------- Login, senha e usuários ----------
 function genPass(){const a='abcdefghjkmnpqrstuvwxyz',A='ABCDEFGHJKLMNPQRSTUVWXYZ',d='23456789';const r=n=>crypto.getRandomValues(new Uint32Array(1))[0]%n;
@@ -1784,9 +1977,9 @@ function myPassword(){
   async d=>{if(d.password!==d.password2){toast('As senhas não são iguais.');return false}
     try{await DtruckAPI.changePassword(d.current,d.password);toast('Senha alterada');}catch(e){toast(e.message||'Não foi possível alterar a senha.');return false}});
 }
-const MODS=[['painel','Painel',1],['pagar','Contas a pagar'],['receber','Contas a receber'],['os','Ordens de serviço'],['lancamentos','Entradas e saídas'],['notas','Importar notas'],['fluxo','Fluxo de caixa',1],['dre','DRE',1],['clientes','Clientes'],['pecas','Produtos'],['entrada','Entrada de mercadoria'],['laudos','Laudos']];
+const MODS=[['painel','Painel',1],['orcamentos','Orçamentos'],['pagar','Contas a pagar'],['receber','Contas a receber'],['os','Ordens de serviço'],['lancamentos','Entradas e saídas'],['notas','Importar notas'],['fluxo','Fluxo de caixa',1],['dre','DRE',1],['clientes','Clientes'],['pecas','Produtos'],['entrada','Entrada de mercadoria'],['laudos','Laudos']];
 const PRESETS={tudo:Object.fromEntries(MODS.map(([k,,v])=>[k,v?'ver':'editar'])),consulta:Object.fromEntries(MODS.map(([k])=>[k,'ver'])),
-  estoque:{pecas:'editar',entrada:'editar',notas:'ver'},financeiro:{painel:'ver',pagar:'editar',receber:'editar',os:'ver',lancamentos:'editar',fluxo:'ver',dre:'ver',clientes:'ver'},oficina:{os:'editar',laudos:'editar',clientes:'editar',pecas:'ver'}};
+  estoque:{pecas:'editar',entrada:'editar',notas:'ver'},financeiro:{painel:'ver',orcamentos:'editar',pagar:'editar',receber:'editar',os:'ver',lancamentos:'editar',fluxo:'ver',dre:'ver',clientes:'ver'},oficina:{orcamentos:'editar',os:'editar',laudos:'editar',clientes:'editar',pecas:'ver'}};
 function can(mod,lvl='ver'){const me=DtruckAPI.me&&DtruckAPI.me();if(!me)return false;if(me.role==='admin')return true;if(mod==='usuarios'||mod==='config')return false;const P=me.perms||{};
   if(mod==='painel'&&lvl==='editar')return P.lancamentos==='editar';
   const v=P[mod];if(mod==='notas'&&P.entrada==='editar')return true;return lvl==='editar'?v==='editar':!!v}
@@ -1886,7 +2079,7 @@ document.addEventListener('change',e=>{if(e.target.id==='pm'&&e.target.value){UI
 
 // ---------- Rotas ----------
 const EDIT_ACTS=['new-lanc','edit-lanc','del-lanc','pay','unpay','ct-batch','new-conta','new-cli','edit-cli','del-cli','new-peca','edit-peca','del-peca','imp-run','imp-undo','ent-dar','saldo-ini','clear-ex'];
-function primeiraTela(){return ['painel','pagar','receber','os','lancamentos','entrada','pecas','clientes','laudos','notas','fluxo','dre'].find(v=>can(v))||'painel'}
+function primeiraTela(){return ['painel','orcamentos','pagar','receber','os','lancamentos','entrada','pecas','clientes','laudos','notas','fluxo','dre'].find(v=>can(v))||'painel'}
 function aplicarPermissoes(){document.querySelectorAll('#menu a[data-v]').forEach(a=>{a.hidden=!can(a.dataset.v)});
   document.querySelectorAll('#menu .navgrp').forEach(g=>{g.hidden=![...g.querySelectorAll('a[data-v]')].some(a=>!a.hidden)})}
 // grupos do menu que abrem e fecham (lembra a escolha neste navegador)
@@ -1896,13 +2089,13 @@ function aplicarGrupos(){document.querySelectorAll('#menu .navgrp').forEach(g=>{
 document.addEventListener('click',e=>{const t=e.target.closest('.grp-t');if(!t)return;const g=t.closest('.navgrp');const abrir=g.classList.contains('closed');UI.nav[g.dataset.g]=abrir;g.classList.toggle('closed',!abrir);t.setAttribute('aria-expanded',String(abrir));try{localStorage.setItem('dtruck-nav',JSON.stringify(UI.nav))}catch(x){}});
 function route(){let h=location.hash.slice(1);if(h==='config'){UI.cfg.num=null;UI.cfg.dirty=false}
   // ao sair de uma OS ou laudo sem alterações pendentes, a tela volta para a lista
-  if(h!=='os'&&UI.os&&UI.os.edit&&!UI.os.dirty)UI.os.edit=null;if(h!=='laudos'&&UI.laudo&&UI.laudo.edit&&!UI.laudo.dirty)UI.laudo.edit=null;if(S.db&&VIEWS[h]&&!can(h)){h=primeiraTela();history.replaceState(null,'','#'+h)}UI.view=VIEWS[h]?h:(S.db?primeiraTela():'painel');if(h==='usuarios')UI.users=null;render();window.scrollTo(0,0);if(S.db&&window.DtruckAPI)DtruckAPI.sync().catch(()=>{})}
+  if(h!=='os'&&UI.os&&UI.os.edit&&!UI.os.dirty)UI.os.edit=null;if(h!=='laudos'&&UI.laudo&&UI.laudo.edit&&!UI.laudo.dirty)UI.laudo.edit=null;if(h!=='orcamentos'&&UI.orc&&UI.orc.edit&&!UI.orc.dirty)UI.orc.edit=null;if(S.db&&VIEWS[h]&&!can(h)){h=primeiraTela();history.replaceState(null,'','#'+h)}UI.view=VIEWS[h]?h:(S.db?primeiraTela():'painel');if(h==='usuarios')UI.users=null;render();window.scrollTo(0,0);if(S.db&&window.DtruckAPI)DtruckAPI.sync().catch(()=>{})}
 window.addEventListener('hashchange',route);
 
 // ---------- Boot ----------
 let rtimer;
 const certBusy=()=>{const f=$('#cert-file'),box=$('#cert-box');return !!(f&&(f.files.length||$('#cert-pass').value||(box&&box.contains(document.activeElement))))};
-const editando=()=>(UI.view==='os'&&UI.os&&UI.os.edit)||(UI.view==='laudos'&&UI.laudo&&UI.laudo.edit)||(UI.view==='config'&&UI.cfg&&UI.cfg.dirty);
+const editando=()=>(UI.view==='orcamentos'&&UI.orc&&UI.orc.edit)||(UI.view==='os'&&UI.os&&UI.os.edit)||(UI.view==='laudos'&&UI.laudo&&UI.laudo.edit)||(UI.view==='config'&&UI.cfg&&UI.cfg.dirty);
 function rerender(){clearTimeout(rtimer);rtimer=setTimeout(()=>{if(!$('#ov')&&!certBusy()&&!editando())render();else if(!editando())pendingRender=true},40)}
 let pendingRender=false;
 new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;render()}}).observe($('#modal-root'),{childList:true});
@@ -1924,7 +2117,7 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
   const map=d=>({id:d.id,...d.data()});
   const sub=(col,key,flag)=>db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);S.ready[flag]=1;if(S.ready.c&&S.ready.p&&S.ready.l)clearTimeout(to);rerender()},err=>{console.error(err);S.ready[flag]=1;rerender()});
   sub('clientes','clientes','c');sub('pecas','pecas','p');sub('lancamentos','lancs','l');sub('notas','notas','n');
-  for(const [col,key] of [['dfe','dfe'],['dfefila','dfefila'],['sys','sys'],['os','os'],['laudos','laudos']])db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);rerender()},()=>{});
+  for(const [col,key] of [['dfe','dfe'],['dfefila','dfefila'],['sys','sys'],['os','os'],['laudos','laudos'],['orcamentos','orcamentos']])db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);rerender()},()=>{});
   db.collection('categorias').onSnapshot(s=>{S.categorias=s.docs.map(map);rebuildCats();rerender()},()=>{});
   db.doc('config/geral').onSnapshot(s=>{S.config=s.exists?s.data():{saldoInicial:0};rerender()},()=>{});
 })();

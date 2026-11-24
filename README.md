@@ -25,4 +25,4 @@ Sistema de gestão financeira da Dtruck Center: entradas e saídas, importação
 
 Toda requisição que altera dados precisa do cabeçalho `x-dtruck: 1`.
 
-Coleções: `clientes`, `pecas`, `lancamentos`, `notas`, `config` (esta última só para administradores).
+Coleções: `clientes`, `pecas` (produtos), `lancamentos`, `notas`, `os`, `laudos`, `categorias`, `orcamentos`, `config` (esta última só para administradores).
