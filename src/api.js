@@ -6,7 +6,7 @@
 //   DFE_TOKEN      token do robô que consulta a Receita (GitHub Actions); sem ele as rotas /api/robo ficam desligadas
 // Binding D1: DB
 
-const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys', 'os', 'laudos', 'laudofotos']);
+const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'config', 'dfe', 'dfefila', 'sys', 'os', 'laudos', 'laudofotos', 'categorias']);
 const FORA_DO_SYNC = new Set(['dfexml', 'laudofotos']);   // grandes: baixados só quando abertos
 const ADMIN_ONLY = new Set(['config']);
 const ROBOT_ONLY = new Set(['dfe', 'sys']);          // só o robô da Receita grava aqui
@@ -32,7 +32,7 @@ const pode = (me, ...mods) => mods.some(m => me.perms[m]);
 const editaAlgum = (me, ...mods) => mods.some(m => me.perms[m] === 'editar');
 // Coleções que cada pessoa recebe na sincronização, conforme os módulos liberados
 function colecoesVisiveis(me) {
-  const c = new Set(['config']);
+  const c = new Set(['config', 'categorias']);
   if (pode(me, 'painel', 'pagar', 'receber', 'lancamentos', 'fluxo', 'dre') || editaAlgum(me, 'notas')) c.add('lancamentos');
   if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada', 'os', 'laudos')) c.add('clientes');
   if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos', 'os')) c.add('pecas');
@@ -49,6 +49,7 @@ function podeGravar(me, col, dados) {
     case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada', 'os', 'laudos');
     case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos', 'os');
     case 'os': return editaAlgum(me, 'os');
+    case 'categorias': return editaAlgum(me, 'lancamentos', 'pagar', 'receber');
     case 'laudos': case 'laudofotos': return editaAlgum(me, 'laudos');
     case 'notas': return editaAlgum(me, 'notas', 'entrada');
     case 'dfefila': return editaAlgum(me, 'entrada');

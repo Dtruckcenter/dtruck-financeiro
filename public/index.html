@@ -152,6 +152,11 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+.modotab{display:inline-flex;gap:4px;padding:4px;margin-bottom:14px;border-radius:999px;background:var(--glass-bg,var(--surface));border:1px solid var(--glass-border,var(--line))}
+.modotab button{font:700 14px var(--f-body);border:0;background:transparent;color:var(--muted);padding:8px 18px;border-radius:999px;cursor:pointer}
+.modotab button.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 4px 12px rgba(24,168,238,.3)}
+tr.clic{cursor:pointer}tr.clic:hover td{background:rgba(24,168,238,.09)}
+tfoot td{border-top:2px solid var(--line);background:var(--surface-2)}
 main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-act=os-new],main.ro [data-act=os-del],main.ro [data-act=os-del-list],main.ro [data-act=os-save],main.ro [data-act=lau-new],main.ro [data-act=lau-save],main.ro [data-act=lau-dup],main.ro [data-act=lau-del],main.ro [data-act=lau-del-list],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
 .nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
 .seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
@@ -381,15 +386,28 @@ const CATS = [
   {id:'aluguel', nome:'Aluguel e condomínio', tipo:'saida', grupo:'desp_adm'},
   {id:'utilidades', nome:'Energia, água e internet', tipo:'saida', grupo:'desp_adm'},
   {id:'contab', nome:'Contabilidade e sistemas', tipo:'saida', grupo:'desp_adm'},
+  {id:'taxas', nome:'Impostos e taxas (IPVA, alvará, licenças)', tipo:'saida', grupo:'desp_adm'},
+  {id:'seguros', nome:'Seguros', tipo:'saida', grupo:'desp_adm'},
   {id:'outras_desp', nome:'Outras despesas', tipo:'saida', grupo:'desp_adm'},
   {id:'marketing', nome:'Marketing', tipo:'saida', grupo:'desp_com'},
   {id:'comissoes', nome:'Comissões de vendedores', tipo:'saida', grupo:'desp_com'},
   {id:'combustivel', nome:'Combustível e entregas', tipo:'saida', grupo:'desp_oper'},
   {id:'manutencao', nome:'Manutenção', tipo:'saida', grupo:'desp_oper'},
+  {id:'ferramentas', nome:'Ferramentas e materiais de oficina', tipo:'saida', grupo:'desp_oper'},
   {id:'desp_fin', nome:'Tarifas bancárias e juros', tipo:'saida', grupo:'desp_fin'},
   {id:'investimento', nome:'Investimentos / equipamentos', tipo:'saida', grupo:'invest'},
 ];
-const CAT = Object.fromEntries(CATS.map(c=>[c.id,c]));
+const CATS_BASE = CATS.map(c=>({...c,base:true}));
+const CAT = {};
+// categorias = padrão do sistema + personalizadas (coleção "categorias"); ajustes do padrão usam o mesmo id
+function rebuildCats(){let custom=[];try{custom=S.categorias||[]}catch(e){}const byId=Object.fromEntries(custom.map(c=>[c.id,c]));
+  const lista=CATS_BASE.map(c=>byId[c.id]?{...c,...byId[c.id],base:true}:{...c});
+  custom.filter(c=>!CATS_BASE.some(b=>b.id===c.id)).forEach(c=>lista.push({...c,base:false}));
+  CATS.length=0;lista.forEach(c=>CATS.push(c));Object.keys(CAT).forEach(k=>delete CAT[k]);CATS.forEach(c=>CAT[c.id]=c)}
+rebuildCats();
+const catsAtivas=()=>CATS.filter(c=>c.ativo!==false);
+const GRUPOS={receita:'Receita de vendas e serviços',rec_fin:'Receitas financeiras e outras',deducoes:'Impostos sobre vendas e deduções',cmv:'Custo dos produtos (CMV)',desp_pessoal:'Despesas com pessoal',desp_adm:'Despesas administrativas',desp_com:'Despesas comerciais',desp_oper:'Despesas operacionais',desp_fin:'Despesas financeiras',invest:'Investimentos (fora da DRE)'};
+const GRUPOS_T={entrada:['receita','rec_fin'],saida:['cmv','deducoes','desp_pessoal','desp_adm','desp_com','desp_oper','desp_fin','invest']};
 const FORMAS = ['PIX','Dinheiro','Boleto','Cartão de crédito','Cartão de débito','Transferência','Cheque'];
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_L = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -414,7 +432,7 @@ const mesLabel = ym=>{const [y,m]=ym.split('-');return MESES_L[+m-1]+' de '+y};
 function nice(v){if(v<=0)return 1;const p=10**Math.floor(Math.log10(v));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
 
 // ---------- Estado ----------
-const S = {clientes:[],pecas:[],lancs:[],notas:[],os:[],laudos:[],dfe:[],dfefila:[],sys:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
+const S = {clientes:[],pecas:[],lancs:[],notas:[],os:[],laudos:[],categorias:[],dfe:[],dfefila:[],sys:[],config:{saldoInicial:0},ready:{c:0,p:0,l:0,n:0},db:null,noDb:false};
 const UI = {view:'painel',mes:thisMonth,ano:+today.slice(0,4),lf:{mes:thisMonth,tipo:'',status:'',cat:'',q:''},cq:'',pq:'',pf:''};
 try{const s=JSON.parse(localStorage.getItem('dtruck-ui')||'{}');if(s.mes)UI.mes=s.mes;}catch(e){}
 const saveUI = ()=>{try{localStorage.setItem('dtruck-ui',JSON.stringify({mes:UI.mes}))}catch(e){}};
@@ -564,7 +582,7 @@ function vLancs(){
     ${monthPicker('lf-mes',f.mes)}<button class="btn sm" id="lf-todos">Todos os meses</button>
     <select id="lf-tipo" aria-label="Tipo"><option value="">Entradas e saídas</option><option value="entrada" ${f.tipo==='entrada'?'selected':''}>Só entradas</option><option value="saida" ${f.tipo==='saida'?'selected':''}>Só saídas</option></select>
     <select id="lf-status" aria-label="Status"><option value="">Qualquer status</option><option value="pago" ${f.status==='pago'?'selected':''}>Pago / recebido</option><option value="aberto" ${f.status==='aberto'?'selected':''}>Em aberto</option><option value="vencido" ${f.status==='vencido'?'selected':''}>Vencido</option></select>
-    <select id="lf-cat" aria-label="Categoria"><option value="">Todas as categorias</option>${CATS.map(c=>`<option value="${c.id}" ${f.cat===c.id?'selected':''}>${c.nome}</option>`).join('')}</select>
+    <select id="lf-cat" aria-label="Categoria"><option value="">Todas as categorias</option>${catsAtivas().map(c=>`<option value="${c.id}" ${f.cat===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
     <input type="search" id="lf-q" placeholder="Buscar descrição, cliente, fornecedor, nº doc." value="${esc(f.q)}">
   </div>
   <div id="lt">${lancTable()}</div>`;
@@ -678,12 +696,12 @@ function confirmBox(title,msg,label,fn){
 
 function lancForm(l){
   const isNew=!l.id;
-  const opts=t=>CATS.filter(c=>c.tipo===t).map(c=>`<option value="${c.id}" ${l.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
+  const opts=t=>CATS.filter(c=>c.tipo===t&&(c.ativo!==false||c.id===l.categoria)).map(c=>`<option value="${c.id}" ${l.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
   const html=`<h2>${isNew?'Novo lançamento':'Editar lançamento'}</h2><div class="form">
    <div class="f w6"><div class="seg" role="radiogroup"><label><input type="radio" name="tipo" value="entrada" ${l.tipo==='entrada'?'checked':''}><span>Entrada</span></label><label><input type="radio" name="tipo" value="saida" ${l.tipo==='saida'?'checked':''}><span>Saída</span></label></div></div>
    <div class="f w4"><label for="l-desc">Descrição</label><input id="l-desc" name="descricao" required value="${esc(l.descricao)}" placeholder="Ex.: Venda balcão — kit embreagem"></div>
    <div class="f w2"><label for="l-data">Data / vencimento</label><input id="l-data" type="date" name="data" required value="${l.data||today}"></div>
-   <div class="f"><label for="l-cat">Categoria</label><select id="l-cat" name="categoria"></select></div>
+   <div class="f"><label for="l-cat">Categoria</label><div style="display:flex;gap:6px"><select id="l-cat" name="categoria" style="flex:1;min-width:0"></select><button type="button" class="btn sm" id="l-newcat" title="Criar categoria">+</button></div></div>
    <div class="f"><label for="l-val">Valor (R$)</label><input id="l-val" name="valor" type="number" step="0.01" min="0" required value="${l.valor??''}" inputmode="decimal"></div>
    <div class="f" id="w-cli"><label for="l-cli">Cliente</label><select id="l-cli" name="clienteId"><option value="">— sem cliente —</option>${S.clientes.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt')).map(c=>`<option value="${c.id}" ${l.clienteId===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}</select></div>
    <div class="f" id="w-forn"><label for="l-forn">Fornecedor / favorecido</label><input id="l-forn" name="fornecedor" value="${esc(l.fornecedor)}"></div>
@@ -711,6 +729,8 @@ function lancForm(l){
       $('#l-hint').textContent=show?(c==='venda_pecas'?'A quantidade sai do estoque do produto ao salvar.':'A quantidade entra no estoque do produto ao salvar.'):'';
       if(!first&&show&&$('#l-pec').value){const p=pecaById($('#l-pec').value);const q=parseInt($('#l-qtd').value)||1;const u=c==='venda_pecas'?+p.preco:+p.custo;if(u)$('#l-val').value=r2(u*q).toFixed(2);if(!$('#l-desc').value.trim())$('#l-desc').value=(c==='venda_pecas'?'Venda ':'Compra ')+p.descricao}};
     f.querySelectorAll('[name=tipo]').forEach(r=>r.onchange=()=>sync(false));
+    $('#l-newcat').onclick=()=>{const t=f.tipo.value;const rascunho=Object.fromEntries(new FormData(f));rascunho.pago=!!rascunho.pago;
+      UI.catCb=id=>setTimeout(()=>lancForm({...l,...rascunho,valor:rascunho.valor,categoria:id}),80);catForm(null,t,()=>{})};
     $('#l-cat').onchange=()=>syncPeca(false);$('#l-pec').onchange=()=>syncPeca(false);$('#l-qtd').oninput=()=>syncPeca(false);
     const sp=()=>{$('#w-dp').hidden=!$('#l-pago').checked};$('#l-pago').onchange=sp;sp();
     sync(true);
@@ -888,7 +908,7 @@ function impPreview(){
   const rows=L.map((n,ix)=>{
     if(n.erro)return '';
     if(n.kind==='cancel')return `<tr class="${n.incluir?'':'off'}"><td><input type="checkbox" data-imp="chk" data-i="${ix}" ${n.incluir?'checked':''} ${n.status!=='desfazer'?'disabled':''} aria-label="Incluir"></td><td colspan="2">Evento de cancelamento<div class="hint">${esc(n.chave)}</div></td><td colspan="4">${n.status==='desfazer'?'Vai desfazer a importação desta nota (lançamentos e estoque).':n.status==='junto'?'A nota cancelada veio no mesmo lote e não será importada.':'Nota não encontrada entre as importadas.'}</td><td>${STATUS_PILL[n.status]}</td></tr>`;
-    const cats=CATS.filter(c=>c.tipo===(n.tipo||'entrada')).map(c=>`<option value="${c.id}" ${n.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
+    const cats=catsAtivas().filter(c=>c.tipo===(n.tipo||'entrada')).map(c=>`<option value="${c.id}" ${n.categoria===c.id?'selected':''}>${c.nome}</option>`).join('');
     const itensHtml=n.itens.length&&stockCat(n)&&n.tipo?`<details class="items"><summary>${n.itens.length} item(ns) · ${n.itens.filter(i=>i.map==='new').length} produto(s) novo(s) no cadastro</summary><div class="tw"><table><thead><tr><th>Código</th><th>Descrição</th><th class="num">Qtd</th><th class="num">Unit.</th><th>Produto no cadastro da Dtruck</th></tr></thead><tbody>${n.itens.map((i,j)=>`<tr><td>${esc(i.codigo)}</td><td>${esc(i.descricao)}</td><td class="num">${i.qtd}</td><td class="num">${fmt(i.unit)}</td><td><select data-imp="map" data-i="${ix}" data-j="${j}" aria-label="Produto correspondente"><option value="new" ${i.map==='new'?'selected':''}>+ Cadastrar como produto novo</option><option value="none" ${i.map==='none'?'selected':''}>Não controlar estoque</option>${pecaOpts.replace(`value="${i.map}"`,`value="${i.map}" selected`)}</select></td></tr>`).join('')}</tbody></table></div></details>`:(n.servico?`<div class="hint">${esc(n.servico.slice(0,120))}</div>`:'');
     const jaAuto=((S.dfe.find(x=>x.id===safeId(n.chave))||{}).lancAuto||[]).filter(id=>S.lancs.some(l=>l.id===id)).length;
     const parc=jaAuto?`Contas a pagar já criadas pela Receita (${jaAuto})`:n.dups.length?`${n.dups.length}x · 1º venc. ${fmtD(n.dups[0].venc)}`:(imp.avista?'À vista (pago na emissão)':'Em aberto, venc. na emissão');
@@ -1011,7 +1031,7 @@ async function runImport(){
 
 
 // ---------- Contas a pagar / Contas a receber ----------
-UI.contas={saida:{st:'aberto',per:'',q:'',sel:new Set()},entrada:{st:'aberto',per:'',q:'',sel:new Set()}};
+UI.contas={saida:{st:'aberto',per:'',q:'',cat:'',modo:'lista',cmes:'',sel:new Set()},entrada:{st:'aberto',per:'',q:'',cat:'',modo:'lista',cmes:'',sel:new Set()}};
 const addDias=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const diasAte=iso=>Math.round((new Date(iso+'T12:00:00')-new Date(today+'T12:00:00'))/864e5);
 function contasFiltradas(tipo){
@@ -1019,7 +1039,7 @@ function contasFiltradas(tipo){
   return S.lancs.filter(l=>l.tipo===tipo&&
     (f.st==='todas'||(f.st==='pagas'?l.pago:!l.pago))&&
     (f.st!=='vencidas'||isLate(l))&&(f.st!=='hoje'||l.data===today)&&(f.st!=='7d'||(l.data>=today&&l.data<=em7))&&(f.st!=='30d'||(l.data>=today&&l.data<=em30))&&
-    (!f.per||(f.st==='pagas'?caixaDate(l):l.data).startsWith(f.per))&&
+    (!f.per||(f.st==='pagas'?caixaDate(l):l.data).startsWith(f.per))&&(!f.cat||(f.cat==='_sem'?!CAT[l.categoria]:l.categoria===f.cat))&&
     (!q||[l.descricao,l.documento,l.fornecedor,cliNome(l.clienteId),CAT[l.categoria]?.nome].join(' ').toLowerCase().includes(q)))
    .sort((a,b)=>f.st==='pagas'?caixaDate(b).localeCompare(caixaDate(a)):String(a.data||'').localeCompare(String(b.data||'')));
 }
@@ -1047,17 +1067,21 @@ function vContas(tipo){
   const f=UI.contas[tipo], P=tipo==='saida', ab=S.lancs.filter(l=>l.tipo===tipo&&!l.pago);
   const venc=ab.filter(isLate), hoje=ab.filter(l=>l.data===today), d7=ab.filter(l=>l.data>=today&&l.data<=addDias(today,7)), d30=ab.filter(l=>l.data>=today&&l.data<=addDias(today,30));
   const mes=S.lancs.filter(l=>l.tipo===tipo&&l.pago&&caixaDate(l).startsWith(thisMonth));
+  const abas=`<div class="modotab"><button type="button" class="${f.modo!=='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="lista">Contas</button><button type="button" class="${f.modo==='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="cat">Categorias</button></div>`;
+  const cabec=`<div class="head"><div><h1>${P?'Contas a pagar':'Contas a receber'}</h1><p class="sub">${P?'Boletos e despesas a pagar. As contas das notas dos fornecedores entram sozinhas pela Receita.':'Valores que os clientes devem à Dtruck, por vencimento.'}</p></div>
+    <div class="tools"><button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>${abas}`;
+  if(f.modo==='cat')return cabec+catResumo(tipo);
   afterHooks.push(()=>{const upd=()=>{$('#ct-tab').innerHTML=contasTabela(tipo)};
-    $('#ct-per').onchange=e=>{f.per=e.target.value;upd()};
+    $('#ct-per').onchange=e=>{f.per=e.target.value;upd()};$('#ct-cat').onchange=e=>{f.cat=e.target.value;f.sel.clear();upd()};
     let t;$('#ct-q').oninput=e=>{clearTimeout(t);t=setTimeout(()=>{f.q=e.target.value;upd()},180)}});
   const tabs=[['aberto','Em aberto'],['vencidas','Vencidas'],['hoje','Vencem hoje'],['7d','Próximos 7 dias'],['30d','Próximos 30 dias'],['pagas',P?'Pagas':'Recebidas'],['todas','Todas']];
   const k=(st,lbl,list,cls='')=>`<div class="kpi click ${f.st===st?'hl':''}" data-act="ct-st" data-t="${tipo}" data-st="${st}" role="button" tabindex="0"><span class="lbl">${lbl}</span><span class="val ${cls}">${fmt(sum(list,l=>+l.valor))}</span><span class="note">${list.length} conta(s)</span></div>`;
-  return `<div class="head"><div><h1>${P?'Contas a pagar':'Contas a receber'}</h1><p class="sub">${P?'Boletos e despesas a pagar. As contas das notas dos fornecedores entram sozinhas pela Receita.':'Valores que os clientes devem à Dtruck, por vencimento.'}</p></div>
-    <div class="tools"><button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>
+  return `${cabec}
   <div class="kpis">${k('vencidas','Vencidas',venc,venc.length?'neg':'')}${k('hoje','Vencem hoje',hoje)}${k('7d','Próximos 7 dias',d7)}${k('30d','Próximos 30 dias',d30)}${k('aberto','Total em aberto',ab)}
     <div class="kpi click ${f.st==='pagas'?'hl':''}" data-act="ct-st" data-t="${tipo}" data-st="pagas" role="button" tabindex="0"><span class="lbl">${P?'Pago':'Recebido'} em ${MESES_L[+thisMonth.slice(5)-1]}</span><span class="val ${P?'neg':'pos'}">${fmt(sum(mes,l=>+l.valor))}</span><span class="note">${mes.length} conta(s)</span></div></div>
   <div class="seltab">${tabs.map(([st,l])=>`<button type="button" class="${f.st===st?'on':''}" data-act="ct-st" data-t="${tipo}" data-st="${st}">${l}</button>`).join('')}</div>
-  <div class="filters"><input type="month" id="ct-per" value="${f.per}" aria-label="Mês"><button class="btn sm" data-act="ct-per-clear" data-t="${tipo}">Qualquer mês</button>
+  <div class="filters"><select id="ct-cat" aria-label="Categoria"><option value="">Todas as categorias</option>${catsAtivas().filter(c=>c.tipo===tipo).map(c=>`<option value="${c.id}" ${f.cat===c.id?'selected':''}>${esc(c.nome)}</option>`).join('')}<option value="_sem" ${f.cat==='_sem'?'selected':''}>Sem categoria</option></select>
+    <input type="month" id="ct-per" value="${f.per}" aria-label="Mês"><button class="btn sm" data-act="ct-per-clear" data-t="${tipo}">Qualquer mês</button>
     <input type="search" id="ct-q" placeholder="Buscar ${P?'fornecedor':'cliente'}, descrição ou nº da nota" value="${esc(f.q)}"></div>
   <div id="ct-tab">${contasTabela(tipo)}</div>`;
 }
@@ -1078,6 +1102,58 @@ document.addEventListener('change',e=>{const c=e.target;if(!c.dataset||!c.datase
   else{const ab=contasFiltradas(T).filter(l=>!l.pago);if(c.checked)ab.forEach(l=>f.sel.add(l.id));else f.sel.clear()}
   $('#ct-tab').innerHTML=contasTabela(T)});
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList&&e.target.classList.contains('kpi')&&e.target.dataset.act){e.preventDefault();e.target.click()}});
+
+
+// ---------- Categorias de contas a pagar / receber ----------
+function catResumo(tipo){
+  const f=UI.contas[tipo],P=tipo==='saida',mes=f.cmes||thisMonth;
+  afterHooks.push(()=>{$('#cr-mes').onchange=e=>{f.cmes=e.target.value||thisMonth;render()};$('#cr-zeros').onchange=e=>{f.zeros=e.target.checked;render()}});
+  const L=S.lancs.filter(l=>l.tipo===tipo);
+  const ids=[...new Set([...catsAtivas().filter(c=>c.tipo===tipo).map(c=>c.id),...L.map(l=>CAT[l.categoria]?l.categoria:'_sem')])];
+  const linhas=ids.map(id=>{const ls=L.filter(l=>id==='_sem'?!CAT[l.categoria]:l.categoria===id);const ab=ls.filter(l=>!l.pago);
+    return {id,c:CAT[id],ab:sum(ab,l=>+l.valor),nab:ab.length,venc:sum(ab.filter(isLate),l=>+l.valor),mes:sum(ls.filter(l=>inMonth(l,mes)),l=>+l.valor),pg:sum(ls.filter(l=>l.pago&&caixaDate(l).startsWith(mes)),l=>+l.valor)}})
+    .filter(r=>(f.zeros&&r.id!=='_sem')||r.nab||r.mes||r.pg).sort((a,b)=>b.mes-a.mes||b.ab-a.ab);
+  const max=Math.max(1,...linhas.map(r=>r.mes)),tot=sum(linhas,r=>r.mes);
+  return `<div class="filters"><label for="cr-mes" class="hint" style="font-weight:600">Mês</label><input type="month" id="cr-mes" value="${mes}"><span class="hint">Total do mês por categoria (data de vencimento). “Em aberto” e “Vencido” consideram todas as datas.</span>
+    <label class="check"><input type="checkbox" id="cr-zeros" ${f.zeros?'checked':''}> Mostrar categorias sem movimento</label>
+    <span style="margin-left:auto"><button class="btn" data-act="cat-gerir" data-t="${tipo}">Gerenciar categorias</button></span></div>
+  <div class="tw"><table><thead><tr><th>Categoria</th><th>Linha da DRE</th><th class="num">${P?'Despesa':'Receita'} no mês</th><th style="width:22%">Participação</th><th class="num">${P?'Pago':'Recebido'} no mês</th><th class="num">Em aberto</th><th class="num">Vencido</th></tr></thead><tbody>
+  ${linhas.length?'':`<tr><td colspan="7" class="empty">Nenhuma conta neste mês. Marque “Mostrar categorias sem movimento” para ver todas.</td></tr>`}${linhas.map(r=>`<tr class="clic" data-act="cat-ver" data-t="${tipo}" data-id="${r.id}" title="Ver as contas desta categoria"><td><b>${r.c?esc(r.c.nome):'Sem categoria'}</b>${r.c&&r.c.ativo===false?' <span class="pill info">Desativada</span>':''}</td><td class="hint">${r.c?esc(GRUPOS[r.c.grupo]||''):'—'}</td>
+    <td class="num ${P?'neg':'pos'}"><b>${fmt(r.mes)}</b></td><td><div class="bar-track"><div class="bar-fill ${P?'':'alt'}" style="width:${r.mes/max*100}%"></div></div><span class="hint">${tot?(r.mes/tot*100).toFixed(0):0}%</span></td>
+    <td class="num">${fmt(r.pg)}</td><td class="num">${r.ab?fmt(r.ab)+`<div class="hint">${r.nab} conta(s)</div>`:'—'}</td><td class="num ${r.venc?'neg':''}">${r.venc?fmt(r.venc):'—'}</td></tr>`).join('')}
+  </tbody><tfoot><tr><td><b>Total</b></td><td></td><td class="num"><b>${fmt(tot)}</b></td><td></td><td class="num"><b>${fmt(sum(linhas,r=>r.pg))}</b></td><td class="num"><b>${fmt(sum(linhas,r=>r.ab))}</b></td><td class="num neg"><b>${fmt(sum(linhas,r=>r.venc))}</b></td></tr></tfoot></table></div>`;
+}
+function catGerir(tipo){const P=tipo==='saida';
+  const lista=()=>CATS.filter(c=>c.tipo===tipo).map(c=>{const n=S.lancs.filter(l=>l.categoria===c.id).length;
+    return `<tr class="${c.ativo===false?'off':''}"><td><b>${esc(c.nome)}</b>${c.base?'':' <span class="pill in">Criada por vocês</span>'}</td><td class="hint">${esc(GRUPOS[c.grupo]||'')}</td><td class="num">${n}</td>
+      <td><div class="act"><button type="button" class="btn sm ghost" data-act="cat-edit" data-id="${c.id}">Editar</button>${!c.base&&!n?`<button type="button" class="btn sm ghost danger" data-act="cat-del" data-id="${c.id}">Excluir</button>`:''}</div></td></tr>`}).join('');
+  openModal(`<h2>Categorias de ${P?'contas a pagar':'contas a receber'}</h2><p class="hint">Cada categoria entra numa linha da DRE. Categorias com lançamentos não podem ser excluídas, mas podem ser desativadas (somem das listas de escolha e continuam nos relatórios).</p>
+    <div class="tw" style="max-height:52vh"><table><thead><tr><th>Categoria</th><th>Linha da DRE</th><th class="num">Lançamentos</th><th></th></tr></thead><tbody id="cg-list">${lista()}</tbody></table></div>
+    <div class="mfoot"><button type="button" class="btn" data-act="cat-new" data-t="${tipo}">+ Nova categoria</button><button type="submit" class="btn pri">Fechar</button></div>`,async()=>{});
+}
+function catForm(c,tipo,depois){const novo=!c;c=c||{nome:'',tipo,grupo:tipo==='saida'?'desp_adm':'receita',ativo:true};
+  const voltar=()=>setTimeout(()=>{depois?depois():catGerir(c.tipo)},60);
+  openModal(`<h2>${novo?'Nova categoria':'Editar categoria'}</h2><div class="form">
+    <div class="f w6"><label for="cf-nome">Nome da categoria</label><input id="cf-nome" name="nome" value="${esc(c.nome)}" placeholder="${c.tipo==='saida'?'Ex.: Manutenção de máquinas':'Ex.: Locação de guindaste'}" required></div>
+    <div class="f w6"><label for="cf-grupo">Entra na DRE como</label><select id="cf-grupo" name="grupo">${GRUPOS_T[c.tipo].map(g=>`<option value="${g}" ${c.grupo===g?'selected':''}>${GRUPOS[g]}</option>`).join('')}</select></div>
+    ${novo?'':`<div class="f w6"><label class="check"><input type="checkbox" name="ativo" ${c.ativo!==false?'checked':''}> Categoria ativa (aparece para escolher nos lançamentos)</label></div>`}
+  </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">${novo?'Criar categoria':'Salvar'}</button></div>`,async d=>{
+    const nome=String(d.nome||'').trim();if(!nome){toast('Dê um nome à categoria.');return false}
+    if(CATS.some(x=>x.id!==c.id&&x.tipo===c.tipo&&x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe uma categoria com esse nome.');return false}
+    const id=c.id||('c_'+S.db.collection('categorias').doc().id);
+    const ok=await guard(S.db.doc('categorias/'+id).set({nome,tipo:c.tipo,grupo:d.grupo,ativo:novo?true:!!d.ativo}),novo?'Categoria criada':'Categoria salva');
+    if(ok){voltar();if(UI.catCb){UI.catCb(id);UI.catCb=null}}return ok});
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const a=b.dataset.act;if(!a.startsWith('cat-')&&a!=='ct-modo')return;
+  const T=b.dataset.t,f=T&&UI.contas[T];
+  switch(a){
+    case 'ct-modo':f.modo=b.dataset.m;render();break;
+    case 'cat-ver':f.cat=b.dataset.id;f.modo='lista';f.st='todas';f.per=f.cmes||thisMonth;f.sel.clear();render();break;
+    case 'cat-gerir':catGerir(T);break;
+    case 'cat-new':catForm(null,T);break;
+    case 'cat-edit':catForm(CAT[b.dataset.id]);break;
+    case 'cat-del':{const c=CAT[b.dataset.id];confirmBox('Excluir categoria',`Excluir a categoria <b>${esc(c.nome)}</b>?`,'Excluir',async()=>{await guard(S.db.doc('categorias/'+c.id).delete(),'Categoria excluída');setTimeout(()=>catGerir(c.tipo),60)});break}
+  }});
 
 // ---------- Entrada de mercadoria (notas de fornecedores baixadas da Receita) ----------
 function chaveValida(ch){if(!/^\d{44}$/.test(ch))return false;let s=0,w=2;for(let i=42;i>=0;i--){s+=+ch[i]*w;w=w===9?2:w+1}const r=s%11;return (r<2?0:11-r)===+ch[43]}
@@ -1832,6 +1908,7 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
   const sub=(col,key,flag)=>db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);S.ready[flag]=1;if(S.ready.c&&S.ready.p&&S.ready.l)clearTimeout(to);rerender()},err=>{console.error(err);S.ready[flag]=1;rerender()});
   sub('clientes','clientes','c');sub('pecas','pecas','p');sub('lancamentos','lancs','l');sub('notas','notas','n');
   for(const [col,key] of [['dfe','dfe'],['dfefila','dfefila'],['sys','sys'],['os','os'],['laudos','laudos']])db.collection(col).onSnapshot(s=>{S[key]=s.docs.map(map);rerender()},()=>{});
+  db.collection('categorias').onSnapshot(s=>{S.categorias=s.docs.map(map);rebuildCats();rerender()},()=>{});
   db.doc('config/geral').onSnapshot(s=>{S.config=s.exists?s.data():{saldoInicial:0};rerender()},()=>{});
 })();
 </script>
