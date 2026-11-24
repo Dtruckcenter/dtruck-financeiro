@@ -10,7 +10,49 @@ const COLLECTIONS = new Set(['clientes', 'pecas', 'lancamentos', 'notas', 'confi
 const ADMIN_ONLY = new Set(['config']);
 const ROBOT_ONLY = new Set(['dfe', 'sys']);          // só o robô da Receita grava aqui
 const CHAVE_RE = /^\d{44}$/;
-const ROLES = new Set(['admin', 'operador', 'leitura']);
+const ROLES = new Set(['admin', 'usuario', 'operador', 'leitura']);
+// Módulos do sistema e o que cada nível libera. Nível: '' (sem acesso), 'ver' ou 'editar'.
+const MODULOS = ['painel', 'pagar', 'receber', 'lancamentos', 'notas', 'fluxo', 'dre', 'clientes', 'pecas', 'entrada'];
+const SO_VER = new Set(['painel', 'fluxo', 'dre']);
+function permsDe(u) {
+  if (u.role === 'admin') return Object.fromEntries(MODULOS.map(m => [m, SO_VER.has(m) ? 'ver' : 'editar']));
+  let p = null; try { p = u.perms ? JSON.parse(u.perms) : null; } catch { p = null; }
+  if (!p) {           // perfis antigos
+    const lvl = u.role === 'leitura' ? 'ver' : 'editar';
+    p = Object.fromEntries(MODULOS.map(m => [m, SO_VER.has(m) ? 'ver' : lvl]));
+  }
+  return Object.fromEntries(MODULOS.map(m => [m, ['ver', 'editar'].includes(p[m]) ? (SO_VER.has(m) ? 'ver' : p[m]) : '']));
+}
+function limparPerms(p) {
+  if (!p || typeof p !== 'object') return null;
+  return Object.fromEntries(MODULOS.map(m => [m, ['ver', 'editar'].includes(p[m]) ? (SO_VER.has(m) ? 'ver' : p[m]) : '']));
+}
+const pode = (me, ...mods) => mods.some(m => me.perms[m]);
+const editaAlgum = (me, ...mods) => mods.some(m => me.perms[m] === 'editar');
+// Coleções que cada pessoa recebe na sincronização, conforme os módulos liberados
+function colecoesVisiveis(me) {
+  const c = new Set(['config']);
+  if (pode(me, 'painel', 'pagar', 'receber', 'lancamentos', 'fluxo', 'dre') || editaAlgum(me, 'notas')) c.add('lancamentos');
+  if (pode(me, 'painel', 'receber', 'lancamentos', 'notas', 'clientes', 'entrada')) c.add('clientes');
+  if (pode(me, 'painel', 'pecas', 'notas', 'entrada', 'lancamentos')) c.add('pecas');
+  if (pode(me, 'notas', 'entrada')) c.add('notas');
+  if (pode(me, 'entrada')) { c.add('dfe'); c.add('dfefila'); c.add('sys'); }
+  return c;
+}
+// Quem pode gravar em cada coleção (para lançamentos, depende de ser entrada ou saída)
+function podeGravar(me, col, dados) {
+  if (me.role === 'admin') return true;
+  switch (col) {
+    case 'clientes': return editaAlgum(me, 'clientes', 'notas', 'entrada');
+    case 'pecas': return editaAlgum(me, 'pecas', 'notas', 'entrada', 'lancamentos');
+    case 'notas': return editaAlgum(me, 'notas', 'entrada');
+    case 'dfefila': return editaAlgum(me, 'entrada');
+    case 'lancamentos':
+      if (editaAlgum(me, 'lancamentos', 'notas')) return true;
+      return dados.every(d => !d || (d.tipo === 'saida' ? me.perms.pagar === 'editar' : d.tipo === 'entrada' ? me.perms.receber === 'editar' : false));
+    default: return false;
+  }
+}
 const ID_RE = /^[A-Za-z0-9_-]{1,190}$/;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 const MAX_BODY = 256 * 1024;
@@ -47,6 +89,7 @@ let schemaReady = false;
 async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(SCHEMA.map(s => db.prepare(s)));
+  try { await db.prepare(`ALTER TABLE users ADD COLUMN perms TEXT`).run(); } catch { /* coluna já existe */ }
   schemaReady = true;
 }
 
@@ -117,7 +160,7 @@ async function currentUser(request, db) {
   if (!token) return null;
   const th = await sha256(token);
   const row = await db.prepare(
-    `SELECT u.email, u.name, u.role, u.must_change, s.expires_at FROM sessions s
+    `SELECT u.email, u.name, u.role, u.perms, u.must_change, s.expires_at FROM sessions s
      JOIN users u ON u.email = s.email WHERE s.token_hash = ?1 AND u.active = 1`
   ).bind(th).first();
   if (!row || row.expires_at < Date.now()) return null;
@@ -125,7 +168,7 @@ async function currentUser(request, db) {
   if (row.expires_at - Date.now() < SESSION_DAYS * 864e5 / 2) {
     await db.prepare(`UPDATE sessions SET expires_at = ?1 WHERE token_hash = ?2`).bind(Date.now() + SESSION_DAYS * 864e5, th).run();
   }
-  return { email: row.email, name: row.name, role: row.role, mustChange: !!row.must_change, tokenHash: th };
+  return { email: row.email, name: row.name, role: row.role, perms: permsDe(row), mustChange: !!row.must_change, tokenHash: th };
 }
 
 async function startSession(db, email, request) {
@@ -174,7 +217,7 @@ async function writeDoc(db, col, id, data, deleted, email, action) {
   ]);
 }
 
-const userOut = u => ({ email: u.email, name: u.name, role: u.role, active: !!u.active, mustChange: !!u.must_change, lastLogin: u.last_login || null, createdAt: u.created_at });
+const userOut = u => ({ email: u.email, name: u.name, role: u.role === 'admin' ? 'admin' : 'usuario', perms: permsDe(u), active: !!u.active, mustChange: !!u.must_change, lastLogin: u.last_login || null, createdAt: u.created_at });
 
 // ---------- Rotas ----------
 export async function onRequest({ request, env, params }) {
@@ -238,13 +281,13 @@ export async function onRequest({ request, env, params }) {
   const me = await currentUser(request, db);
   if (!me) return fail(401, 'Não autenticado');
 
-  if (route === 'me' && method === 'GET') return json({ email: me.email, name: me.name, role: me.role, mustChange: me.mustChange });
+  if (route === 'me' && method === 'GET') return json({ email: me.email, name: me.name, role: me.role === 'admin' ? 'admin' : 'usuario', perms: me.perms, mustChange: me.mustChange });
 
   // Token do robô, para o administrador copiar e colar no GitHub
   if (route === 'robo-token' && method === 'GET') {
     if (me.role !== 'admin' || me.mustChange) return fail(403, 'Só administradores');
     if (!env.DFE_TOKEN) return fail(404, 'Token do robô não configurado no servidor');
-    return json({ token: env.DFE_TOKEN });
+    return json({ token: env.DFE_TOKEN, accessId: env.CF_ACCESS_CLIENT_ID || '', accessSecret: env.CF_ACCESS_CLIENT_SECRET || '' });
   }
 
   if (route === 'password' && method === 'POST') {
@@ -275,29 +318,34 @@ export async function onRequest({ request, env, params }) {
       `SELECT col, id, data, deleted, seq FROM docs WHERE seq > ?1 AND col <> 'dfexml' ORDER BY seq LIMIT ?2`
     ).bind(since, LIMIT + 1).all();
     const more = results.length > LIMIT;
-    return json({ docs: more ? results.slice(0, LIMIT) : results, more });
+    const vis = colecoesVisiveis(me);
+    // documentos de módulos não liberados são omitidos (o número de sequência continua avançando)
+    const docs = (more ? results.slice(0, LIMIT) : results).map(d => vis.has(d.col) ? d : { col: '_', id: '_', data: null, deleted: 1, seq: d.seq });
+    return json({ docs, more });
   }
 
   if (parts[0] === 'docs' && parts.length === 3) {
     const [, col, id] = parts;
     if (!COLLECTIONS.has(col) || !ID_RE.test(id)) return fail(400, 'Caminho inválido');
-    if (me.role === 'leitura') return fail(403, 'Perfil só leitura');
     if (ADMIN_ONLY.has(col) && me.role !== 'admin') return fail(403, 'Só administradores alteram configurações');
     if (ROBOT_ONLY.has(col)) return fail(403, 'Estes dados vêm da Receita e não podem ser alterados');
+    const atualRow = await db.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
+    const atual = atualRow ? JSON.parse(atualRow.data) : null;
     if (method === 'PUT' || method === 'PATCH') {
       const r = await readJson(request);
       if (r.tooBig) return fail(413, 'Registro grande demais');
       if (!r.body || !r.body.data || typeof r.body.data !== 'object' || Array.isArray(r.body.data)) return fail(400, 'Corpo inválido');
       let data = r.body.data;
       if (method === 'PATCH') {
-        const row = await db.prepare(`SELECT data FROM docs WHERE col = ?1 AND id = ?2 AND deleted = 0`).bind(col, id).first();
-        if (!row) return fail(404, 'Registro não encontrado');
-        data = deepMerge(JSON.parse(row.data), data);
+        if (!atual) return fail(404, 'Registro não encontrado');
+        data = deepMerge(JSON.parse(atualRow.data), data);
       }
+      if (!podeGravar(me, col, [atual, data])) return fail(403, 'Você não tem permissão para alterar isto. Peça ao administrador.');
       await writeDoc(db, col, id, data, false, me.email, method === 'PUT' ? 'set' : 'update');
       return noContent();
     }
     if (method === 'DELETE') {
+      if (!podeGravar(me, col, [atual])) return fail(403, 'Você não tem permissão para excluir isto. Peça ao administrador.');
       await writeDoc(db, col, id, null, true, me.email, 'delete');
       return noContent();
     }
@@ -307,6 +355,7 @@ export async function onRequest({ request, env, params }) {
   // XML completo de uma nota recebida pela Receita (fica fora da sincronização por ser grande)
   if (parts[0] === 'xml' && parts.length === 2 && method === 'GET') {
     if (!CHAVE_RE.test(parts[1])) return fail(400, 'Chave inválida');
+    if (!pode(me, 'entrada', 'notas')) return fail(403, 'Sem permissão');
     const row = await db.prepare(`SELECT data FROM docs WHERE col = 'dfexml' AND id = ?1 AND deleted = 0`).bind(parts[1]).first();
     if (!row) return fail(404, 'XML ainda não disponível');
     return json({ xml: JSON.parse(row.data).xml });
@@ -323,15 +372,16 @@ export async function onRequest({ request, env, params }) {
     }
     if (parts.length === 1 && method === 'POST') {
       const r = await readJson(request); if (!r.body) return fail(400, 'Dados inválidos');
-      const email = normEmail(r.body.email), name = String(r.body.name || '').trim().slice(0, 80), role = r.body.role;
+      const email = normEmail(r.body.email), name = String(r.body.name || '').trim().slice(0, 80), role = r.body.role === 'admin' ? 'admin' : 'usuario';
+      const perms = role === 'admin' ? null : limparPerms(r.body.perms);
       if (!EMAIL_RE.test(email)) return fail(400, 'E-mail inválido.');
-      if (!ROLES.has(role)) return fail(400, 'Perfil inválido.');
+      if (role !== 'admin' && (!perms || !Object.values(perms).some(Boolean))) return fail(400, 'Marque pelo menos um módulo para este usuário.');
       const prob = passwordProblem(r.body.password); if (prob) return fail(400, prob);
       if (await db.prepare(`SELECT 1 FROM users WHERE email = ?1`).bind(email).first()) return fail(409, 'Já existe um usuário com este e-mail.');
       const now = Date.now(), pf = await newPasswordFields(r.body.password);
-      await db.prepare(`INSERT INTO users (email, name, role, pass_hash, pass_salt, iterations, active, must_change, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7, ?7)`).bind(email, name, role, pf.pass_hash, pf.pass_salt, pf.iterations, now).run();
-      await audit(db, me.email, 'create', 'users', email, { name, role });
+      await db.prepare(`INSERT INTO users (email, name, role, pass_hash, pass_salt, iterations, active, must_change, created_at, updated_at, perms)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7, ?7, ?8)`).bind(email, name, role, pf.pass_hash, pf.pass_salt, pf.iterations, now, perms ? JSON.stringify(perms) : null).run();
+      await audit(db, me.email, 'create', 'users', email, { name, role, perms });
       return noContent();
     }
     if (parts.length === 2) {
@@ -343,9 +393,15 @@ export async function onRequest({ request, env, params }) {
         const b = r.body, sets = [], vals = [], kill = [];
         if (b.name !== undefined) { sets.push('name = ?'); vals.push(String(b.name).trim().slice(0, 80)); }
         if (b.role !== undefined) {
-          if (!ROLES.has(b.role)) return fail(400, 'Perfil inválido.');
-          if (u.role === 'admin' && b.role !== 'admin' && u.active && await adminsAtivos() <= 1) return fail(400, 'Precisa existir pelo menos um administrador ativo.');
-          sets.push('role = ?'); vals.push(b.role);
+          const role = b.role === 'admin' ? 'admin' : 'usuario';
+          if (u.role === 'admin' && role !== 'admin' && u.active && await adminsAtivos() <= 1) return fail(400, 'Precisa existir pelo menos um administrador ativo.');
+          if (email === me.email && role !== 'admin') return fail(400, 'Você não pode tirar o seu próprio acesso de administrador.');
+          sets.push('role = ?'); vals.push(role);
+          if (role !== 'admin') {
+            const perms = limparPerms(b.perms);
+            if (!perms || !Object.values(perms).some(Boolean)) return fail(400, 'Marque pelo menos um módulo para este usuário.');
+            sets.push('perms = ?'); vals.push(JSON.stringify(perms));
+          }
         }
         if (b.active !== undefined) {
           if (!b.active && email === me.email) return fail(400, 'Você não pode desativar o seu próprio acesso.');
@@ -364,7 +420,7 @@ export async function onRequest({ request, env, params }) {
         const stmts = [db.prepare(sql).bind(...vals, email)];
         if (kill.length) stmts.push(db.prepare(`DELETE FROM sessions WHERE email = ?1`).bind(email));
         await db.batch(stmts);
-        await audit(db, me.email, b.password !== undefined ? 'reset_password' : 'update', 'users', email, { name: b.name, role: b.role, active: b.active });
+        await audit(db, me.email, b.password !== undefined ? 'reset_password' : 'update', 'users', email, { name: b.name, role: b.role, perms: b.perms, active: b.active });
         return noContent();
       }
       if (method === 'DELETE') {

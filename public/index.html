@@ -131,6 +131,7 @@ td .act{display:flex;gap:4px;justify-content:flex-end}
 .seg input:checked+span{color:inherit}
 .seg label:has(input:checked){background:var(--accent);color:var(--accent-ink)}
 .check{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink)}
+.f label.check{display:flex;font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink)}
 .mfoot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
 .hint{font-size:13px;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:6px;font-size:14px;z-index:60;max-width:calc(100% - 32px)}
@@ -151,6 +152,7 @@ details.items select{max-width:260px;font-size:13px;padding:4px 6px}
 .pill.info{background:var(--surface-2);color:var(--muted)}
 tr.off td{opacity:.55}
 .optrow{display:flex;flex-wrap:wrap;gap:8px 20px;margin:12px 0}
+main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-lanc],main.ro [data-act=pay],main.ro [data-act=unpay],main.ro [data-act=ct-batch],main.ro [data-act=new-conta],main.ro [data-act=new-cli],main.ro [data-act=edit-cli],main.ro [data-act=del-cli],main.ro [data-act=new-peca],main.ro [data-act=edit-peca],main.ro [data-act=del-peca],main.ro [data-act=imp-undo],main.ro [data-act=ent-dar],main.ro [data-act=saldo-ini],main.ro [data-act=clear-ex],main.ro [data-ct],main.ro #drop,main.ro a[href="#notas"].btn{display:none!important}
 .nav-badge{margin-left:auto;background:var(--neg);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;line-height:1.5}
 .seltab{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .seltab button{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
@@ -265,8 +267,8 @@ const today = (()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMon
 const thisMonth = today.slice(0,7);
 const pct = (a,b)=>b?((a/b)*100).toFixed(1).replace('.',',')+'%':'—';
 const sum = (arr,f)=>r2(arr.reduce((s,x)=>s+(f?f(x):x),0));
-const caixaDate = l=>l.dataPagamento||l.data;
-const isLate = l=>!l.pago && l.data < today;
+const caixaDate = l=>String(l.dataPagamento||l.data||'');
+const isLate = l=>!l.pago && !!l.data && l.data < today;
 const statusPill = l=>l.pago?'<span class="pill ok">'+(l.tipo==='entrada'?'Recebido':'Pago')+'</span>':(isLate(l)?'<span class="pill late">Vencido</span>':'<span class="pill pend">'+(l.tipo==='entrada'?'A receber':'A pagar')+'</span>');
 const mesLabel = ym=>{const [y,m]=ym.split('-');return MESES_L[+m-1]+' de '+y};
 function nice(v){if(v<=0)return 1;const p=10**Math.floor(Math.log10(v));const n=v/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
@@ -295,7 +297,7 @@ function groupSums(list){
   const resOp=r2(lucroBruto-despOp), resLiq=r2(resOp+g.rec_fin-g.desp_fin);
   return {...g,recLiq,lucroBruto,despOp,resOp,resLiq};
 }
-const inMonth = (l,ym)=>l.data&&l.data.startsWith(ym);
+const inMonth = (l,ym)=>!!l.data&&String(l.data).startsWith(ym);
 const saldoCaixa = (ate)=>r2((+S.config.saldoInicial||0)+sum(S.lancs.filter(l=>l.pago&&caixaDate(l)<=ate),l=>l.tipo==='entrada'?+l.valor:-l.valor));
 
 // ---------- Gráficos ----------
@@ -339,6 +341,7 @@ function render(){
   if(S.noDb){m.innerHTML=`<div class="panel empty"><h2>Não foi possível carregar o sistema</h2><p>${esc(S.noDb)}</p><p><button class="btn pri" onclick="location.reload()">Tentar de novo</button></p></div>`;return}
   if(!(S.ready.c&&S.ready.p&&S.ready.l&&S.ready.n)){m.innerHTML='<div class="loading" id="ld">Carregando dados da Dtruck…</div>';return}
   const banner = hasExamples()?`<div class="banner"><span><span class="pill ex">Exemplo</span> Os registros marcados como exemplo servem só para mostrar o sistema. Apague quando for lançar os dados reais.</span><button class="btn sm" data-act="clear-ex">Apagar dados de exemplo</button></div>`:'';
+  m.classList.toggle('ro',!!S.db&&!can(UI.view,'editar'));
   m.innerHTML = banner + VIEWS[UI.view]();
   afterRender();
 }
@@ -363,7 +366,7 @@ function vPainel(){
   const byCli={};list.filter(l=>l.tipo==='entrada'&&l.clienteId).forEach(l=>byCli[l.clienteId]=(byCli[l.clienteId]||0)+(+l.valor));
   const clis=Object.entries(byCli).sort((a,b)=>b[1]-a[1]).slice(0,5);const clmax=clis[0]?.[1]||1;
   const baixo=S.pecas.filter(p=>(+p.estoque||0)<=(+p.estoqueMin||0)).sort((a,b)=>(a.estoque-a.estoqueMin)-(b.estoque-b.estoqueMin)).slice(0,8);
-  const venc=pend.slice().sort((a,b)=>a.data.localeCompare(b.data)).slice(0,8);
+  const venc=pend.slice().sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))).slice(0,8);
   return `
   <div class="head"><div><h1>Painel</h1><p class="sub">Resumo de ${mesLabel(ym)} · regime de competência</p></div>
     <div class="tools">${monthPicker('pm',ym)}<button class="btn pri" data-act="new-lanc" data-tipo="entrada">+ Entrada</button><button class="btn" data-act="new-lanc" data-tipo="saida">+ Saída</button></div></div>
@@ -391,7 +394,7 @@ function filteredLancs(){
   return S.lancs.filter(l=>(!f.mes||inMonth(l,f.mes))&&(!f.tipo||l.tipo===f.tipo)&&(!f.cat||l.categoria===f.cat)&&
     (!f.status||(f.status==='pago'?l.pago:f.status==='vencido'?isLate(l):!l.pago))&&
     (!q||[l.descricao,l.documento,l.fornecedor,cliNome(l.clienteId),CAT[l.categoria]?.nome].join(' ').toLowerCase().includes(q)))
-    .sort((a,b)=>b.data.localeCompare(a.data)||(b.criadoEm||0)-(a.criadoEm||0));
+    .sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||(b.criadoEm||0)-(a.criadoEm||0));
 }
 function lancTable(){
   const ls=filteredLancs();
@@ -444,7 +447,7 @@ function vFluxo(){
     return {lbl,k,ini,rec,pag,mov:r2(rec-pag),fim:saldo,pr,pp,proj:r2(saldo+projAcc)}});
   const tot=k=>sum(rows,r=>r[k]);
   const cell=(v,cls='')=>`<td class="num ${cls} ${v<0?'neg':''}">${v?fmt(v):'<span class="muted">—</span>'}</td>`;
-  const venc=S.lancs.filter(l=>!l.pago).sort((a,b)=>a.data.localeCompare(b.data)).slice(0,12);
+  const venc=S.lancs.filter(l=>!l.pago).sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))).slice(0,12);
   return `<div class="head"><div><h1>Fluxo de caixa</h1><p class="sub">Regime de caixa: entra no mês em que o dinheiro foi recebido ou pago. Contas em aberto aparecem como previsão.</p></div>
    <div class="tools">${yearPicker('fa',Y)}<button class="btn" data-act="saldo-ini">Saldo inicial: ${fmt(S.config.saldoInicial||0)}</button></div></div>
   <div class="panel" style="margin-bottom:16px"><h2>Saldo acumulado em ${Y}</h2><div class="legend"><span><i style="background:var(--accent)"></i>Realizado</span><span><i style="background:var(--muted)"></i>Projetado (com contas em aberto)</span></div>${lineChart(rows.map(r=>({lbl:r.lbl,v:r.fim,proj:r.proj})))}</div>
@@ -875,7 +878,8 @@ async function runImport(){
         const lancIds=[];
         // contas a pagar já criadas automaticamente quando a nota chegou da Receita: não duplicar
         const dfeDoc=S.dfe.find(x=>x.id===notaId);const lancAuto=((dfeDoc&&dfeDoc.lancAuto)||[]).filter(id=>S.lancs.some(l=>l.id===id));
-        for(let p=0;!lancAuto.length&&p<parcelas.length;p++){const pc=parcelas[p];const ref=S.db.collection('lancamentos').doc();
+        const meP=DtruckAPI.me()||{},Pm=meP.perms||{};const podeFin=meP.role==='admin'||Pm.notas==='editar'||Pm.lancamentos==='editar';
+        for(let p=0;podeFin&&!lancAuto.length&&p<parcelas.length;p++){const pc=parcelas[p];const ref=S.db.collection('lancamentos').doc();
           await ref.set({tipo:n.tipo,descricao:`${n.modelo} ${n.numero} · ${n.cp.nome||'sem nome'}${parcelas.length>1?` (${p+1}/${parcelas.length})`:''}`,data:pc.venc||n.data,categoria:n.categoria,valor:r2(pc.valor),forma,
             documento:`${n.modelo} ${n.numero}${parcelas.length>1?' parc. '+(pc.n||p+1):''}`,obs:n.servico?n.servico.slice(0,300):'',pago,dataPagamento:pago?n.data:'',clienteId,fornecedor:n.tipo==='saida'?n.cp.nome:'',pecaId:'',qtd:0,notaId,exemplo:false,criadoEm:Date.now()});
           lancIds.push(ref.id)}
@@ -907,7 +911,7 @@ function contasFiltradas(tipo){
     (f.st!=='vencidas'||isLate(l))&&(f.st!=='hoje'||l.data===today)&&(f.st!=='7d'||(l.data>=today&&l.data<=em7))&&(f.st!=='30d'||(l.data>=today&&l.data<=em30))&&
     (!f.per||(f.st==='pagas'?caixaDate(l):l.data).startsWith(f.per))&&
     (!q||[l.descricao,l.documento,l.fornecedor,cliNome(l.clienteId),CAT[l.categoria]?.nome].join(' ').toLowerCase().includes(q)))
-   .sort((a,b)=>f.st==='pagas'?caixaDate(b).localeCompare(caixaDate(a)):a.data.localeCompare(b.data));
+   .sort((a,b)=>f.st==='pagas'?caixaDate(b).localeCompare(caixaDate(a)):String(a.data||'').localeCompare(String(b.data||'')));
 }
 function contasTabela(tipo){
   const f=UI.contas[tipo], L=contasFiltradas(tipo), P=tipo==='saida';
@@ -980,6 +984,7 @@ async function darEntrada(ch){
   reclassify();UI.ent.msg=null;location.hash='#notas';
 }
 async function lerChave(raw){
+  if(!can('entrada','editar'))return entMsg('neg','Você só tem permissão para consultar esta tela.');
   const ch=digits(raw);
   if(ch.length!==44)return entMsg('neg','A chave de acesso tem 44 números. Confira e tente de novo.');
   if(!chaveValida(ch))return entMsg('neg','Esta chave não é válida (dígito verificador não confere). Bipe de novo ou confira a digitação.');
@@ -1058,6 +1063,7 @@ function certPanel(){
       <textarea id="cert-fallback" class="f w6" hidden readonly rows="3"></textarea>
     </div>
     <div><b>3. DFE_TOKEN</b>: <button type="button" class="btn sm" data-act="cert-token">Copiar DFE_TOKEN</button> e cole no GitHub com o nome <b>DFE_TOKEN</b>.</div>
+    <div><b>3b. Crachá do robô no login da Cloudflare</b>: <button type="button" class="btn sm" data-act="cert-acc-id">Copiar CF_ACCESS_CLIENT_ID</button> <button type="button" class="btn sm" data-act="cert-acc-secret">Copiar CF_ACCESS_CLIENT_SECRET</button> e cole cada um no GitHub com o nome do botão.</div>
     <div><b>4. Rode a primeira consulta:</b> <a href="https://github.com/Dtruckcenter/dtruck-financeiro/actions/workflows/sefaz-dfe.yml" target="_blank" rel="noopener">Actions → Notas da Receita (DF-e)</a> → botão <b>Run workflow</b> → <b>Run workflow</b>. Em 1 a 2 minutos o resultado aparece nesta tela.</div>
   </div></details>`;
 }
@@ -1083,6 +1089,7 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-act]
   }
   if(b.dataset.act==='cert-copy-pfx')copiar(UI.cert.b64,'CERT_PFX_BASE64 copiado. Cole no GitHub.',$('#cert-fallback'));
   if(b.dataset.act==='cert-copy-pass')copiar(UI.cert.pass,'CERT_PASSWORD copiado. Cole no GitHub.',$('#cert-fallback'));
+  if(b.dataset.act==='cert-acc-id'||b.dataset.act==='cert-acc-secret'){try{const r=await DtruckAPI.roboToken();const v=b.dataset.act==='cert-acc-id'?r.accessId:r.accessSecret;if(!v)return toast('Crachá ainda não configurado no servidor.');copiar(v,(b.dataset.act==='cert-acc-id'?'CF_ACCESS_CLIENT_ID':'CF_ACCESS_CLIENT_SECRET')+' copiado. Cole no GitHub.',$('#cert-fallback'))}catch(x){toast(x.message||'Não consegui buscar o crachá.')}}
   if(b.dataset.act==='cert-token'){try{const t=(await DtruckAPI.roboToken()).token;copiar(t,'DFE_TOKEN copiado. Cole no GitHub.',$('#cert-fallback'))}catch(x){toast(x.message||'Não consegui buscar o token.')}}
 });
 
@@ -1129,7 +1136,15 @@ function myPassword(){
   async d=>{if(d.password!==d.password2){toast('As senhas não são iguais.');return false}
     try{await DtruckAPI.changePassword(d.current,d.password);toast('Senha alterada');}catch(e){toast(e.message||'Não foi possível alterar a senha.');return false}});
 }
-const ROLE_L={admin:'Administrador',operador:'Operador',leitura:'Só leitura'};
+const MODS=[['painel','Painel',1],['pagar','Contas a pagar'],['receber','Contas a receber'],['lancamentos','Entradas e saídas'],['notas','Importar notas'],['fluxo','Fluxo de caixa',1],['dre','DRE',1],['clientes','Clientes'],['pecas','Peças'],['entrada','Entrada de mercadoria']];
+const PRESETS={tudo:Object.fromEntries(MODS.map(([k,,v])=>[k,v?'ver':'editar'])),consulta:Object.fromEntries(MODS.map(([k])=>[k,'ver'])),
+  estoque:{pecas:'editar',entrada:'editar',notas:'ver'},financeiro:{painel:'ver',pagar:'editar',receber:'editar',lancamentos:'editar',fluxo:'ver',dre:'ver',clientes:'ver'}};
+function can(mod,lvl='ver'){const me=DtruckAPI.me&&DtruckAPI.me();if(!me)return false;if(me.role==='admin')return true;if(mod==='usuarios')return false;const P=me.perms||{};
+  if(mod==='painel'&&lvl==='editar')return P.lancamentos==='editar';
+  const v=P[mod];if(mod==='notas'&&P.entrada==='editar')return true;return lvl==='editar'?v==='editar':!!v}
+function resumoPerms(u){if(u.role==='admin')return '<span class="pill in">Administrador</span>';const p=u.perms||{};
+  const ed=MODS.filter(([k])=>p[k]==='editar').map(([,l])=>l), ve=MODS.filter(([k])=>p[k]==='ver').map(([,l])=>l);
+  return `${ed.length?`<div><b>Edita:</b> ${ed.join(', ')}</div>`:''}${ve.length?`<div class="hint"><b>Só vê:</b> ${ve.join(', ')}</div>`:''}${!ed.length&&!ve.length?'<span class="muted">Nenhum módulo</span>':''}`}
 UI.users=null;
 async function loadUsers(){try{UI.users=(await DtruckAPI.users.list()).users}catch(e){UI.users=[];toast(e.message||'Não foi possível carregar os usuários.')}if(UI.view==='usuarios')render()}
 function vUsuarios(){
@@ -1137,14 +1152,14 @@ function vUsuarios(){
   if(me.role!=='admin')return '<div class="panel empty">Só administradores gerenciam usuários.</div>';
   if(!UI.users){loadUsers();return '<div class="loading">Carregando usuários…</div>'}
   const L=UI.users;
-  return `<div class="head"><div><h1>Usuários</h1><p class="sub">Quem pode entrar no sistema e o que cada pessoa pode fazer.</p></div><div class="tools"><button class="btn pri" data-act="user-new">+ Novo usuário</button></div></div>
-  <div class="tw"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>
-  ${L.map(u=>`<tr class="${u.active?'':'off'}"><td><b>${esc(u.name)||'—'}</b>${u.email===me.email?' <span class="pill info">você</span>':''}</td><td>${esc(u.email)}</td><td>${ROLE_L[u.role]||esc(u.role)}</td>
+  return `<div class="head"><div><h1>Usuários e permissões</h1><p class="sub">Cadastre quem pode entrar no sistema e escolha, módulo por módulo, o que cada pessoa pode ver ou alterar.</p></div><div class="tools"><button class="btn pri" data-act="user-new">+ Novo usuário</button></div></div>
+  <div class="tw"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Permissões</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead><tbody>
+  ${L.map(u=>`<tr class="${u.active?'':'off'}"><td><b>${esc(u.name)||'—'}</b>${u.email===me.email?' <span class="pill info">você</span>':''}</td><td>${esc(u.email)}</td><td style="min-width:240px;font-size:13px">${resumoPerms(u)}</td>
     <td>${!u.active?'<span class="pill late">Desativado</span>':u.mustChange?'<span class="pill pend">Senha provisória</span>':'<span class="pill ok">Ativo</span>'}</td>
     <td>${u.lastLogin?new Date(u.lastLogin).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'Nunca entrou'}</td>
-    <td><div class="act"><button class="btn sm ghost" data-act="user-edit" data-id="${esc(u.email)}">Editar</button><button class="btn sm ghost" data-act="user-reset" data-id="${esc(u.email)}">Redefinir senha</button>${u.email!==me.email?`<button class="btn sm ghost danger" data-act="user-del" data-id="${esc(u.email)}">Excluir</button>`:''}</div></td></tr>`).join('')}
+    <td><div class="act"><button class="btn sm ghost" data-act="user-edit" data-id="${esc(u.email)}">Editar permissões</button><button class="btn sm ghost" data-act="user-reset" data-id="${esc(u.email)}">Redefinir senha</button>${u.email!==me.email?`<button class="btn sm ghost danger" data-act="user-del" data-id="${esc(u.email)}">Excluir</button>`:''}</div></td></tr>`).join('')}
   </tbody></table></div>
-  <div class="panel" style="margin-top:16px"><h2>Perfis</h2><p class="hint" style="margin:0"><b>Administrador:</b> faz tudo, inclusive usuários, saldo inicial e CNPJ. <b>Operador:</b> lança, importa notas e cadastra clientes e peças. <b>Só leitura:</b> consulta tudo, sem alterar.</p></div>`;
+  <div class="panel" style="margin-top:16px"><h2>Como funcionam as permissões</h2><p class="hint" style="margin:0"><b>Administrador</b> faz tudo, inclusive cadastrar usuários, saldo inicial e CNPJ. Para os demais, cada módulo pode ficar <b>sem acesso</b> (nem aparece no menu), <b>ver</b> (consulta, sem alterar) ou <b>editar</b>. Quem não tem acesso a um módulo também não recebe os dados dele.</p></div>`;
 }
 function showTempPass(email,pass){
   openModal(`<h2>Senha provisória</h2><p>Passe esta senha para <b>${esc(email)}</b>. No primeiro acesso, o sistema vai pedir para a pessoa criar uma senha pessoal.</p><div class="pwd-show" id="tp">${esc(pass)}</div>
@@ -1152,18 +1167,30 @@ function showTempPass(email,pass){
     ()=>{$('#tp-copy').onclick=()=>{navigator.clipboard.writeText(pass).then(()=>toast('Senha copiada'),()=>{const r=document.createRange();r.selectNodeContents($('#tp'));getSelection().removeAllRanges();getSelection().addRange(r)})}});
 }
 function userForm(u){
-  const isNew=!u;u=u||{role:'operador',active:true};
-  const pass=isNew?genPass():'';
+  const isNew=!u, me=DtruckAPI.me()||{};u=u||{role:'usuario',active:true,perms:PRESETS.financeiro};
+  const pass=isNew?genPass():'', p=u.role==='admin'?PRESETS.tudo:(u.perms||{});
+  const grid=MODS.map(([k,l,so])=>`<tr><td>${l}</td>${['','ver','editar'].map(v=>`<td style="text-align:center">${so&&v==='editar'?'<span class="muted">—</span>':`<input type="radio" name="perm_${k}" value="${v}" ${(p[k]||'')===v?'checked':''} aria-label="${l}: ${v||'sem acesso'}">`}</td>`).join('')}</tr>`).join('');
   openModal(`<h2>${isNew?'Novo usuário':'Editar usuário'}</h2><div class="form">
     <div class="f w6"><label for="u-name">Nome</label><input id="u-name" name="name" value="${esc(u.name)}" required></div>
-    <div class="f w6"><label for="u-email">E-mail</label><input id="u-email" name="email" type="email" value="${esc(u.email)}" ${isNew?'':'disabled'} required></div>
-    <div class="f"><label for="u-role">Perfil</label><select id="u-role" name="role">${Object.entries(ROLE_L).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></div>
-    ${isNew?`<div class="f"><label for="u-pass">Senha provisória</label><input id="u-pass" name="password" value="${pass}"></div>`:`<div class="f"><label class="check" style="margin-top:22px"><input type="checkbox" name="active" ${u.active?'checked':''}> Acesso ativo</label></div>`}
+    <div class="f w4"><label for="u-email">E-mail</label><input id="u-email" name="email" type="email" value="${esc(u.email)}" ${isNew?'':'disabled'} required></div>
+    ${isNew?`<div class="f w2"><label for="u-pass">Senha provisória</label><input id="u-pass" name="password" value="${pass}"></div>`:`<div class="f w2"><label class="check" style="margin-top:22px"><input type="checkbox" name="active" ${u.active?'checked':''} ${u.email===me.email?'disabled':''}> Acesso ativo</label></div>`}
+    <div class="f w6"><label class="check"><input type="checkbox" name="admin" id="u-admin" ${u.role==='admin'?'checked':''} ${u.email===me.email?'disabled':''}> <b>Administrador</b>: acesso total, inclusive cadastrar usuários</label></div>
+    <div class="f w6" id="u-perms" ${u.role==='admin'?'hidden':''}>
+      <label>Permissões por módulo</label>
+      <div class="tools" style="margin:4px 0 8px"><span class="hint">Atalhos:</span><button type="button" class="btn sm" data-preset="financeiro">Financeiro</button><button type="button" class="btn sm" data-preset="estoque">Estoque</button><button type="button" class="btn sm" data-preset="consulta">Só consulta</button><button type="button" class="btn sm" data-preset="tudo">Tudo (sem usuários)</button><button type="button" class="btn sm ghost" data-preset="nada">Limpar</button></div>
+      <div class="tw"><table><thead><tr><th>Módulo</th><th style="text-align:center">Sem acesso</th><th style="text-align:center">Ver</th><th style="text-align:center">Editar</th></tr></thead><tbody>${grid}</tbody></table></div>
+    </div>
   </div><div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri">${isNew?'Criar usuário':'Salvar'}</button></div>`,
-  async d=>{try{
-      if(isNew){await DtruckAPI.users.create({name:d.name,email:d.email,role:d.role,password:d.password});UI.users=null;render();setTimeout(()=>showTempPass(d.email,d.password),50)}
-      else{await DtruckAPI.users.update(u.email,{name:d.name,role:d.role,active:!!d.active});toast('Usuário atualizado');UI.users=null;render()}
-    }catch(e){toast(e.message||'Não foi possível salvar.');return false}});
+  async d=>{
+    const admin=u.email===me.email?true:!!d.admin;
+    const perms=Object.fromEntries(MODS.map(([k])=>[k,d['perm_'+k]||'']));
+    if(!admin&&!Object.values(perms).some(Boolean)){toast('Marque pelo menos um módulo para este usuário.');return false}
+    try{
+      if(isNew){await DtruckAPI.users.create({name:d.name,email:d.email,role:admin?'admin':'usuario',perms,password:d.password});UI.users=null;render();setTimeout(()=>showTempPass(d.email,d.password),50)}
+      else{const upd={name:d.name,role:admin?'admin':'usuario',perms};if(u.email!==me.email)upd.active=!!d.active;await DtruckAPI.users.update(u.email,upd);toast('Usuário atualizado');UI.users=null;render()}
+    }catch(e){toast(e.message||'Não foi possível salvar.');return false}},
+  f=>{$('#u-admin').onchange=e=>{$('#u-perms').hidden=e.target.checked};
+    f.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{const P=b.dataset.preset==='nada'?{}:PRESETS[b.dataset.preset];MODS.forEach(([k])=>{const v=P[k]||'';const r=f.querySelector(`input[name="perm_${k}"][value="${v}"]`)||f.querySelector(`input[name="perm_${k}"][value="ver"]`);if(r)r.checked=true})})});
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const id=b.dataset.id;
@@ -1210,7 +1237,11 @@ document.addEventListener('click',e=>{
 document.addEventListener('change',e=>{if(e.target.id==='pm'&&e.target.value){UI.mes=e.target.value;saveUI();render()}});
 
 // ---------- Rotas ----------
-function route(){const h=location.hash.slice(1);UI.view=VIEWS[h]?h:'painel';if(h==='usuarios')UI.users=null;render();window.scrollTo(0,0);if(S.db&&window.DtruckAPI)DtruckAPI.sync().catch(()=>{})}
+const EDIT_ACTS=['new-lanc','edit-lanc','del-lanc','pay','unpay','ct-batch','new-conta','new-cli','edit-cli','del-cli','new-peca','edit-peca','del-peca','imp-run','imp-undo','ent-dar','saldo-ini','clear-ex'];
+function primeiraTela(){return ['painel','pagar','receber','lancamentos','entrada','pecas','clientes','notas','fluxo','dre'].find(v=>can(v))||'painel'}
+function aplicarPermissoes(){document.querySelectorAll('#menu a[data-v]').forEach(a=>{a.hidden=!can(a.dataset.v)});
+  document.querySelectorAll('#menu .grp').forEach(g=>{let n=g.nextElementSibling,vis=false;while(n&&!n.classList.contains('grp')){if(n.tagName==='A'&&!n.hidden)vis=true;n=n.nextElementSibling}g.hidden=!vis})}
+function route(){let h=location.hash.slice(1);if(S.db&&VIEWS[h]&&!can(h)){h=primeiraTela();history.replaceState(null,'','#'+h)}UI.view=VIEWS[h]?h:(S.db?primeiraTela():'painel');if(h==='usuarios')UI.users=null;render();window.scrollTo(0,0);if(S.db&&window.DtruckAPI)DtruckAPI.sync().catch(()=>{})}
 window.addEventListener('hashchange',route);
 
 // ---------- Boot ----------
@@ -1228,10 +1259,10 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
     if(e&&e.code==='must_change')return showAuth('change');
     S.noDb=e&&e.message?e.message:'Verifique sua conexão.';render();return}
   const who=DtruckAPI.me();
-  if(who){const R={admin:'Administrador',operador:'Operador',leitura:'Só leitura'};
-    $('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.name||who.email)}</b><br>Perfil: ${R[who.role]||esc(who.role)}<div class="acts"><button type="button" data-act="my-pass">Alterar senha</button><button type="button" data-act="logout">Sair</button></div>`;
-    if(who.role==='admin')$('#nav-users').hidden=false;
-    if(UI.view==='usuarios'&&who.role!=='admin'){location.hash='#painel'}}
+  if(who){
+    $('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.name||who.email)}</b><br>${who.role==='admin'?'Administrador':'Usuário'}<div class="acts"><button type="button" data-act="my-pass">Alterar senha</button><button type="button" data-act="logout">Sair</button></div>`;
+    aplicarPermissoes();$('#nav-users').hidden=who.role!=='admin';
+    if(!can(UI.view)){UI.view=primeiraTela();history.replaceState(null,'','#'+UI.view)}}
   S.db=db;
   const to=setTimeout(()=>{const l=$('#ld');if(l)l.textContent='Os dados estão demorando para chegar. Verifique sua conexão; a página atualiza sozinha quando responder.'},10000);
   const map=d=>({id:d.id,...d.data()});
