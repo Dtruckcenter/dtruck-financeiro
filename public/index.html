@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Dtruck Financeiro</title>
+<script>try{var t=localStorage.getItem("dt-tema");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap">
@@ -35,7 +36,7 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
 .app{display:grid;grid-template-columns:220px 1fr;min-height:100%}
-.rail{background:var(--rail);color:var(--rail-ink);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh}
+.rail{background:var(--rail);color:var(--rail-ink);padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
 .brand{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 .brand .logo{width:150px;height:auto;display:block}
 .brand .sym{display:none;width:34px;height:auto}
@@ -180,12 +181,15 @@ td.due{white-space:nowrap}td.due .hint{white-space:nowrap}
 .rail-foot .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .rail-foot .acts button{font:600 12px var(--f-body);background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--rail-ink);border-radius:5px;padding:4px 9px;cursor:pointer}
 .rail-foot .acts button:hover{border-color:var(--accent);color:#fff}
+.rail-foot .tema{width:100%;margin-top:10px;text-align:left}
+.tema-m{display:none;flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--rail-ink);font-size:16px;cursor:pointer}
 .pwd-show{font-family:var(--f-mono);font-size:18px;font-weight:700;background:var(--surface-2);border:1px dashed var(--line);border-radius:6px;padding:10px;text-align:center;letter-spacing:.05em;user-select:all}
 @media (max-width:1100px){.two,.three{grid-template-columns:1fr}}
 @media (max-width:820px){
   .app{grid-template-columns:1fr}
   .rail{position:sticky;top:env(safe-area-inset-top,0px);height:auto;flex-direction:row;align-items:center;gap:12px;padding-block:10px;padding-right:max(16px,env(safe-area-inset-right,0px));z-index:20;overflow:hidden}
   .brand small,.rail-foot,nav.menu .grp,.brand .logo{display:none}
+  .tema-m{display:block}
   .brand .sym{display:block}
   nav.menu{flex-direction:row;overflow-x:auto;gap:2px;flex:1;min-width:0;scrollbar-width:none}
   nav.menu a{padding:7px 10px;border-left:0;border-bottom:3px solid transparent;border-radius:0;white-space:nowrap;font-size:14px}
@@ -365,6 +369,7 @@ html,body,#print-root,#print-root *{-webkit-print-color-adjust:exact!important;p
       <a href="#usuarios" data-v="usuarios" id="nav-users" hidden>Usuários</a>
       <a href="#config" data-v="config" id="nav-config" hidden>Configurações</a>
     </nav>
+    <button type="button" class="tema-m" data-act="tema" id="tema-m" title="Mudar tema"></button>
     <div class="rail-foot" id="railfoot"></div>
   </aside>
   <main id="main"><div class="loading">Carregando dados da Dtruck Center…</div></main>
@@ -1383,6 +1388,14 @@ function cliTable(){
   :`<tr><td colspan="7" class="empty">${S.clientes.length?'Nenhum cliente encontrado.':'Nenhum cliente ainda. Clique em “+ Novo cliente”.'}</td></tr>`}</tbody></table></div>`;
 }
 
+// ---------- Tema claro / escuro ----------
+const TEMAS=['auto','light','dark'],TEMA_NOME={auto:'Automático',light:'Claro',dark:'Escuro'},TEMA_ICO={auto:'◐',light:'☀',dark:'☾'};
+function temaAtual(){const t=document.documentElement.getAttribute('data-theme');return t==='light'||t==='dark'?t:'auto'}
+function aplicarTema(t){const h=document.documentElement;if(t==='light'||t==='dark')h.setAttribute('data-theme',t);else h.removeAttribute('data-theme');
+  try{t==='auto'?localStorage.removeItem('dt-tema'):localStorage.setItem('dt-tema',t)}catch(_){}temaRotulos()}
+function temaRotulos(){const t=temaAtual(),b=document.getElementById('tema-btn'),m=document.getElementById('tema-m');
+  if(b)b.textContent=TEMA_ICO[t]+'  Tema: '+TEMA_NOME[t];if(m){m.textContent=TEMA_ICO[t];m.title='Tema: '+TEMA_NOME[t]+' (toque para mudar)'}}
+temaRotulos();
 // ---------- Impressão (timbrado Dtruck Center) ----------
 const EMPRESA={nome:'DTRUCK COMERCIO DE PEÇAS LTDA',cnpj:'53.995.291/0001-61',email:'DTRUCKCENTER.CONTRATOS@GMAIL.COM'};
 function cabecalhoDtruck(){const logo=document.querySelector('.brand .logo').src;
@@ -2040,6 +2053,7 @@ document.addEventListener('click',e=>{
   switch(b.dataset.act){
     case 'logout':(async()=>{try{await DtruckAPI.logout()}catch(_){}location.hash='';location.reload()})();break;
     case 'my-pass':myPassword();break;
+    case 'tema':{const i=TEMAS.indexOf(temaAtual());aplicarTema(TEMAS[(i+1)%TEMAS.length]);toast('Tema: '+TEMA_NOME[temaAtual()]);break}
     case 'user-new':userForm(null);break;
     case 'user-edit':userForm(UI.users.find(u=>u.email===id));break;
     case 'user-reset':{const p=genPass();confirmBox('Redefinir senha',`Criar uma senha provisória nova para <b>${esc(id)}</b>? A pessoa será desconectada e terá que criar uma senha pessoal no próximo acesso.`,'Redefinir',async()=>{
@@ -2111,7 +2125,7 @@ new MutationObserver(()=>{if(pendingRender&&!$('#ov')){pendingRender=false;rende
     S.noDb=e&&e.message?e.message:'Verifique sua conexão.';render();return}
   const who=DtruckAPI.me();
   if(who){
-    $('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.name||who.email)}</b><br>${who.role==='admin'?'Administrador':'Usuário'}<div class="acts"><button type="button" data-act="my-pass">Alterar senha</button><button type="button" data-act="logout">Sair</button></div>`;
+    $('#railfoot').innerHTML=`Conectado como<br><b style="color:#fff;word-break:break-all">${esc(who.name||who.email)}</b><br>${who.role==='admin'?'Administrador':'Usuário'}<div class="acts"><button type="button" data-act="my-pass">Alterar senha</button><button type="button" data-act="logout">Sair</button><button type="button" class="tema" data-act="tema" id="tema-btn"></button></div>`;temaRotulos();
     aplicarPermissoes();$('#nav-users').hidden=who.role!=='admin';$('#nav-config').hidden=who.role!=='admin';
     if(!can(UI.view)){UI.view=primeiraTela();history.replaceState(null,'','#'+UI.view)}}
   S.db=db;
