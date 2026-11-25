@@ -168,6 +168,8 @@ main.ro [data-act=new-lanc],main.ro [data-act=edit-lanc],main.ro [data-act=del-l
 .kpi.click{cursor:pointer}.kpi.click:hover{border-color:var(--accent)}
 .batchbar{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--ink);color:var(--bg);border-radius:8px;padding:10px 14px;margin-top:12px;z-index:5}
 .batchbar .btn{border-color:transparent}
+.batchbar.top{top:calc(12px + env(safe-area-inset-top,0px));bottom:auto;margin:0 0 12px}
+.batchbar .btn.danger{background:#fff;color:#c62828}
 td.due{white-space:nowrap}td.due .hint{white-space:nowrap}
 .auth{position:fixed;inset:0;background:var(--rail);display:flex;align-items:center;justify-content:center;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:70;overflow-y:auto}
 .auth-wrap{display:flex;flex-direction:column;align-items:center;width:100%;max-width:390px;margin:auto}
@@ -1078,7 +1080,8 @@ function contasTabela(tipo){
   const todasSel=abertos.length&&abertos.every(l=>f.sel.has(l.id));
   const quando=l=>{if(l.pago)return `<span class="hint">${P?'Pago':'Recebido'} em ${fmtD(caixaDate(l))}</span>`;const d=diasAte(l.data);
     return d<0?`<span class="hint neg">${-d} dia(s) em atraso</span>`:d===0?'<span class="hint" style="color:var(--warn)">Vence hoje</span>':`<span class="hint">em ${d} dia(s)</span>`};
-  return `<div class="summary"><span>${L.length} conta(s)</span><span>Total <b>${fmt(sum(L,l=>+l.valor))}</b></span>${abertos.length&&f.st!=='pagas'?`<span>Em aberto <b class="${P?'neg':'pos'}">${fmt(sum(abertos,l=>+l.valor))}</b></span>`:''}</div>
+  const barra=selL.length?`<div class="batchbar top"><span>${selL.length} selecionada(s) · <b>${fmt(sum(selL,l=>+l.valor))}</b></span><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="ct-clear" data-t="${tipo}">Limpar</button>${can(P?'pagar':'receber','editar')?`<button class="btn sm danger" data-act="ct-del" data-t="${tipo}">Excluir selecionadas</button>`:''}<button class="btn sm pri" data-act="ct-batch" data-t="${tipo}">${P?'Pagar':'Receber'} selecionadas</button></span></div>`:'';
+  return `${barra}<div class="summary"><span>${L.length} conta(s)</span><span>Total <b>${fmt(sum(L,l=>+l.valor))}</b></span>${abertos.length&&f.st!=='pagas'?`<span>Em aberto <b class="${P?'neg':'pos'}">${fmt(sum(abertos,l=>+l.valor))}</b></span>`:''}</div>
   <div class="tw"><table><thead><tr><th style="width:34px"><input type="checkbox" data-ct="all" data-t="${tipo}" ${todasSel?'checked':''} ${abertos.length?'':'disabled'} aria-label="Selecionar todas em aberto"></th><th>Vencimento</th><th>${P?'Fornecedor':'Cliente'}</th><th>Descrição</th><th>Categoria</th><th>Forma</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody>
   ${L.length?L.map(l=>`<tr><td>${l.pago?'':`<input type="checkbox" data-ct="one" data-t="${tipo}" data-id="${l.id}" ${f.sel.has(l.id)?'checked':''} aria-label="Selecionar">`}</td>
     <td class="due"><b>${fmtD(l.data)}</b><div>${quando(l)}</div></td>
@@ -1089,7 +1092,7 @@ function contasTabela(tipo){
     <td><div class="act">${l.pago?`<button class="btn sm ghost" data-act="unpay" data-id="${l.id}">Estornar</button>`:`<button class="btn sm" data-act="pay" data-id="${l.id}">${P?'Pagar':'Receber'}</button>`}<button class="btn sm ghost" data-act="edit-lanc" data-id="${l.id}">Editar</button><button class="btn sm ghost danger" data-act="del-lanc" data-id="${l.id}">Excluir</button></div></td></tr>`).join('')
   :`<tr><td colspan="9" class="empty">${f.st==='aberto'?(P?'Nenhuma conta a pagar em aberto.':'Nenhuma conta a receber em aberto.'):'Nenhuma conta encontrada com esses filtros.'}</td></tr>`}
   </tbody></table></div>
-  ${selL.length?`<div class="batchbar"><span>${selL.length} selecionada(s) · <b>${fmt(sum(selL,l=>+l.valor))}</b></span><span style="display:flex;gap:8px"><button class="btn sm" data-act="ct-clear" data-t="${tipo}">Limpar</button><button class="btn sm pri" data-act="ct-batch" data-t="${tipo}">${P?'Pagar':'Receber'} selecionadas</button></span></div>`:''}`;
+  `;
 }
 function vContas(tipo){
   const f=UI.contas[tipo], P=tipo==='saida', ab=S.lancs.filter(l=>l.tipo===tipo&&!l.pago);
@@ -1118,6 +1121,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
     case 'ct-st':f.st=b.dataset.st;f.sel.clear();if(['vencidas','hoje','7d','30d'].includes(f.st))f.per='';render();break;
     case 'ct-per-clear':f.per='';render();break;
     case 'ct-import':contasImportar(T);break;
+    case 'ct-del':{const L=S.lancs.filter(l=>f.sel.has(l.id)&&!l.pago);if(!L.length)return;const est=L.some(stockEffect);
+      confirmBox('Excluir contas',`Excluir ${L.length} conta(s) selecionada(s), total <b>${fmt(sum(L,l=>+l.valor))}</b>?${est?' O estoque dos produtos ligados será revertido.':''} Esta ação não pode ser desfeita.`,'Excluir',async()=>{
+        const ch={};L.forEach(l=>{const a=stockEffect(l);if(a)ch[a.id]=(ch[a.id]||0)-a.d});
+        const ok=await guard((async()=>{for(const l of L)await S.db.doc('lancamentos/'+l.id).delete();await applyStock(ch)})(),`${L.length} conta(s) excluída(s)`);if(ok)f.sel.clear()});break}
     case 'ct-clear':f.sel.clear();$('#ct-tab').innerHTML=contasTabela(T);break;
     case 'new-conta':lancForm({tipo:b.dataset.tipo,categoria:b.dataset.tipo==='entrada'?'venda_pecas':'outras_desp',pago:false,forma:'Boleto',data:addDias(today,0)});break;
     case 'unpay':{const l=S.lancs.find(x=>x.id===b.dataset.id);confirmBox('Estornar',`Voltar “${esc(l.descricao)}” para ${l.tipo==='entrada'?'a receber':'a pagar'}?`,'Estornar',async()=>{await guard(S.db.doc('lancamentos/'+l.id).update({pago:false,dataPagamento:''}),'Estornado')});break}
