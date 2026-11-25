@@ -122,6 +122,7 @@ td .act{display:flex;gap:4px;justify-content:flex-end}
 .ov{position:fixed;inset:0;background:rgba(8,12,16,.55);display:flex;align-items:flex-start;justify-content:center;padding:max(20px,env(safe-area-inset-top,0px)) 12px 20px;overflow-y:auto;z-index:50}
 .modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;width:100%;max-width:620px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal h2{font-size:21px;margin-bottom:14px}
+.modal.wide{max-width:1000px}
 .form{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
 .f{display:flex;flex-direction:column;gap:4px;grid-column:span 3;min-width:0}
 .f.w6{grid-column:span 6}.f.w2{grid-column:span 2}.f.w4{grid-column:span 4}
@@ -1096,7 +1097,7 @@ function vContas(tipo){
   const mes=S.lancs.filter(l=>l.tipo===tipo&&l.pago&&caixaDate(l).startsWith(thisMonth));
   const abas=`<div class="modotab"><button type="button" class="${f.modo!=='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="lista">Contas</button><button type="button" class="${f.modo==='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="cat">Categorias</button></div>`;
   const cabec=`<div class="head"><div><h1>${P?'Contas a pagar':'Contas a receber'}</h1><p class="sub">${P?'Boletos e despesas a pagar. As contas das notas dos fornecedores entram sozinhas pela Receita.':'Valores que os clientes devem à Dtruck, por vencimento.'}</p></div>
-    <div class="tools"><button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>${abas}`;
+    <div class="tools">${can(P?'pagar':'receber','editar')?`<button class="btn" data-act="ct-import" data-t="${tipo}">Importar do LocControl</button>`:''}<button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>${abas}`;
   if(f.modo==='cat')return cabec+catResumo(tipo);
   afterHooks.push(()=>{const upd=()=>{$('#ct-tab').innerHTML=contasTabela(tipo)};
     $('#ct-per').onchange=e=>{f.per=e.target.value;upd()};$('#ct-cat').onchange=e=>{f.cat=e.target.value;f.sel.clear();upd()};
@@ -1116,6 +1117,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
   switch(b.dataset.act){
     case 'ct-st':f.st=b.dataset.st;f.sel.clear();if(['vencidas','hoje','7d','30d'].includes(f.st))f.per='';render();break;
     case 'ct-per-clear':f.per='';render();break;
+    case 'ct-import':contasImportar(T);break;
     case 'ct-clear':f.sel.clear();$('#ct-tab').innerHTML=contasTabela(T);break;
     case 'new-conta':lancForm({tipo:b.dataset.tipo,categoria:b.dataset.tipo==='entrada'?'venda_pecas':'outras_desp',pago:false,forma:'Boleto',data:addDias(today,0)});break;
     case 'unpay':{const l=S.lancs.find(x=>x.id===b.dataset.id);confirmBox('Estornar',`Voltar “${esc(l.descricao)}” para ${l.tipo==='entrada'?'a receber':'a pagar'}?`,'Estornar',async()=>{await guard(S.db.doc('lancamentos/'+l.id).update({pago:false,dataPagamento:''}),'Estornado')});break}
@@ -1124,6 +1126,115 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
         async d=>{const ok=await guard((async()=>{for(const l of L)await S.db.doc('lancamentos/'+l.id).update(d.f?{pago:true,dataPagamento:d.d||today,forma:d.f}:{pago:true,dataPagamento:d.d||today})})(),`${L.length} conta(s) baixada(s)`);if(ok)f.sel.clear()});break}
   }
 });
+// ---------- Importar contas (planilha exportada do LocControl ou outro sistema) ----------
+const IMP_CAMPOS=[
+  ['data','Vencimento',true],['valor','Valor',true],['pessoa','Fornecedor / cliente'],['descricao','Descrição / histórico'],
+  ['documento','Nº documento / nota'],['categoria','Categoria'],['situacao','Situação'],['dataPagamento','Data do pagamento'],['forma','Forma de pagamento'],['obs','Observações']];
+const semAc=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function impAutoMapa(cab){
+  const H=cab.map(semAc),usado=new Set(),m={};
+  const achar=(campo,regs,nao)=>{for(const r of regs){const i=H.findIndex((h,i)=>h&&!usado.has(i)&&r.test(h)&&!(nao&&nao.test(h)));if(i>=0){m[campo]=i;usado.add(i);return}}};
+  achar('data',[/venc/,/^data$/,/^dt\.?$/]);
+  achar('dataPagamento',[/(data|dt).*(pag|baixa|receb|liquid|quit)/,/^(pago|recebido|baixado) em/,/^pagamento$|^baixa$|^recebimento$/],/forma|meio|valor|vlr/);
+  achar('valor',[/^(valor|vlr\.?)$/,/^(valor|vlr\.?) (original|do titulo|titulo|documento|da parcela|parcela|bruto|nominal|total|a pagar|a receber)$/,/valor|vlr/],/pag|receb|juro|multa|desc|acresc|baixa|liquid|abat/);
+  achar('pessoa',[/fornecedor|favorecido|credor|cliente|sacado|devedor|pagador/,/razao|^nome|pessoa|empresa|parceiro/]);
+  achar('situacao',[/situa|status|^sit\.?$/]);
+  achar('forma',[/forma|meio de pag|tipo de pag|tipo documento|especie/]);
+  achar('categoria',[/categoria|plano de conta|classifica|natureza|centro de custo/]);
+  achar('documento',[/documento|^doc\.?$|n.? ?(da )?nota|^nf|nfe|titulo|duplicata|^numero|^n[ºo°.]?$|parcela/],/valor|vlr|data|dt/);
+  achar('descricao',[/descri|historico|referente|^conta$|detalhe/]);
+  achar('obs',[/obs|complemento|anota/]);
+  return m}
+function impData(v){if(v==null||v==='')return'';
+  if(v instanceof Date&&!isNaN(v))return new Date(v.getTime()-v.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+  if(typeof v==='number'&&v>20000&&v<80000){const d=new Date(Math.round((v-25569)*864e5));return d.toISOString().slice(0,10)}
+  const s=String(v).trim();let m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if(m){let y=+m[3];if(y<100)y+=2000;return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[1]}-${m[2]}-${m[3]}`:''}
+function impValor(v){if(typeof v==='number')return Math.abs(r2(v));let s=String(v??'').replace(/[^\d,.\-]/g,'');if(!s)return 0;
+  if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');else if((s.match(/\./g)||[]).length>1)s=s.replace(/\./g,'');
+  const n=parseFloat(s);return isNaN(n)?0:Math.abs(r2(n))}
+function impForma(v){const s=semAc(v);if(!s)return'';
+  return s.includes('pix')?'PIX':/boleto|bloqueto|cobranca|dda/.test(s)?'Boleto':/dinheiro|especie|caixa/.test(s)?'Dinheiro':/credito/.test(s)?'Cartão de crédito':/debito/.test(s)?'Cartão de débito':/cartao/.test(s)?'Cartão de crédito':/transf|ted|doc\b/.test(s)?'Transferência':/cheque/.test(s)?'Cheque':''}
+function impPago(sit,dp){const s=semAc(sit);if(s){if(/abert|pendent|parcial|a pagar|a receber|venc|atras|nao pag|nao receb|cancel/.test(s))return false;if(/pag|quit|liquid|baix|receb|compens/.test(s))return true}return !!dp}
+const IMP_SIN={pecas:'produtos',peca:'produtos',mercadoria:'produtos',mercadorias:'produtos',autopecas:'produtos',luz:'energia',agua:'energia',telefone:'internet',salario:'salarios',folha:'salarios',imposto:'impostos',tributos:'impostos',tarifa:'tarifas',juro:'juros',servico:'servicos'};
+const impPalavras=s=>semAc(s).replace(/[^a-z0-9 ]/g,' ').split(' ').filter(w=>w.length>2&&!['das','dos','para','com'].includes(w)).map(w=>IMP_SIN[w]||w);
+function impCat(txt,tipo){const s=semAc(txt);if(!s)return'';const L=catsAtivas().filter(c=>c.tipo===tipo);
+  const ex=L.find(c=>semAc(c.nome)===s)||L.find(c=>semAc(c.nome).includes(s)||s.includes(semAc(c.nome)));if(ex)return ex.id;
+  const w=new Set(impPalavras(s));let best='',bs=0;for(const c of L){const n=impPalavras(c.nome).filter(x=>w.has(x)).length;if(n>bs){bs=n;best=c.id}}return best}
+function impChave(l){return [l.tipo,l.data,(+l.valor).toFixed(2),semAc(l.documento),semAc(l.fornecedor||cliNome(l.clienteId)||'')].join('|')}
+function impLinhas(st,tipo){const m=st.mapa,cel=(r,k)=>m[k]!=null&&m[k]!==''?r[m[k]]:'';
+  const cliNom={},cliDoc={};S.clientes.forEach(c=>{cliNom[semAc(c.nome)]=c.id;if(c.fantasia)cliNom[semAc(c.fantasia)]=c.id;const d=digits(c.documento);if(d)cliDoc[d]=c.id});
+  const existe=new Set(S.lancs.filter(l=>l.tipo===tipo).map(impChave)),noArq=new Set();
+  return st.rows.map((r,i)=>{const data=impData(cel(r,'data')),valor=impValor(cel(r,'valor')),pessoa=String(cel(r,'pessoa')||'').trim();
+    const dpRaw=impData(cel(r,'dataPagamento')),pago=st.situacao&&impPago(cel(r,'situacao'),dpRaw);
+    let clienteId='';if(tipo==='entrada'&&pessoa){const d=digits(pessoa);clienteId=(d.length>=11&&cliDoc[d])||cliNom[semAc(pessoa)]||''}
+    const desc=String(cel(r,'descricao')||'').trim(),doc=String(cel(r,'documento')||'').trim();
+    const descricao=(tipo==='entrada'&&!clienteId&&pessoa?[pessoa,desc].filter(Boolean).join(' · '):desc||pessoa)||(tipo==='saida'?'Conta a pagar':'Conta a receber')+(doc?' '+doc:'');
+    const l={tipo,descricao:descricao.slice(0,200),data,categoria:impCat(cel(r,'categoria'),tipo)||st.cat,valor,forma:impForma(cel(r,'forma'))||st.forma,documento:doc,obs:String(cel(r,'obs')||'').trim(),
+      pago:!!pago,dataPagamento:pago?(dpRaw||data):'',clienteId,fornecedor:tipo==='saida'?pessoa:'',pecaId:'',qtd:0,origem:'importacao',criadoEm:Date.now()};
+    let erro='';if(!data)erro='sem vencimento';else if(!(valor>0))erro='sem valor';
+    else{const k=impChave(l);if(existe.has(k))erro='já existe no sistema';else if(noArq.has(k))erro='repetida no arquivo';noArq.add(k)}
+    if(!erro&&pago&&!st.pagas)erro='já paga (ignorada)';
+    return{i,l,erro}})}
+function impTabela(st,tipo){const L=impLinhas(st,tipo),ok=L.filter(x=>!x.erro);
+  const cab=`<p style="margin:10px 0 6px"><b>${ok.length}</b> conta(s) para importar · <b>${fmt(sum(ok,x=>x.l.valor))}</b>${L.length-ok.length?` · <span style="color:var(--mute)">${L.length-ok.length} ignorada(s)</span>`:''}</p>`;
+  const linha=x=>`<tr${x.erro?' style="opacity:.5"':''}><td>${fmtD(x.l.data)||'—'}</td><td>${esc(x.l.descricao)}${x.l.tipo==='saida'&&x.l.fornecedor&&x.l.fornecedor!==x.l.descricao?`<br><small>${esc(x.l.fornecedor)}</small>`:''}${x.l.clienteId?`<br><small>Cliente: ${esc(cliNome(x.l.clienteId))}</small>`:''}</td><td>${esc(x.l.documento)}</td><td>${esc(CAT[x.l.categoria]?.nome||'')}</td><td>${x.l.pago?(x.l.tipo==='saida'?'Paga':'Recebida')+' '+fmtD(x.l.dataPagamento):'Em aberto'}</td><td class="num">${fmt(x.l.valor)}</td><td>${x.erro?`<small>${esc(x.erro)}</small>`:'✓'}</td></tr>`;
+  return cab+`<div class="tw" style="max-height:300px;overflow:auto"><table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Documento</th><th>Categoria</th><th>Situação</th><th class="num">Valor</th><th></th></tr></thead><tbody>${L.slice(0,300).map(linha).join('')}</tbody></table></div>${L.length>300?`<p class="hint">Mostrando 300 de ${L.length} linhas.</p>`:''}`}
+async function impLer(file){
+  await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const buf=await file.arrayBuffer();let wb;
+  if(/\.(csv|txt)$/i.test(file.name)){let t=new TextDecoder('utf-8').decode(buf);if(t.includes('�'))t=new TextDecoder('windows-1252').decode(buf);
+    // CSV no padrão brasileiro: lido como texto (datas dd/mm/aaaa e valores 1.234,56 são tratados depois)
+    t=t.replace(/^﻿/,'');const l0=t.split(/\r?\n/)[0],sep=[';','\t',','].sort((a,b)=>l0.split(b).length-l0.split(a).length)[0];
+    const rows=[];let row=[],cel='',q=false;
+    for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){cel+='"';i++}else q=false}else cel+=ch}
+      else if(ch==='"')q=true;else if(ch===sep){row.push(cel);cel=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(cel);rows.push(row);row=[];cel=''}else cel+=ch}
+    if(cel||row.length){row.push(cel);rows.push(row)}
+    wb={SheetNames:['csv'],Sheets:{csv:XLSX.utils.aoa_to_sheet(rows.map(r=>r.map(String)))}}}
+  else wb=XLSX.read(buf,{type:'array',cellDates:true});
+  // usa a aba com mais linhas
+  let best=null;for(const n of wb.SheetNames){const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:true});if(!best||a.length>best.length)best=a}
+  const A=(best||[]).filter(r=>r.some(c=>String(c).trim()!==''));if(!A.length)throw new Error('vazio');
+  // linha de cabeçalho: a que mais reconhece colunas entre as 20 primeiras
+  let hi=0,hs=-1;for(let i=0;i<Math.min(20,A.length);i++){const s=Object.keys(impAutoMapa(A[i].map(String))).length;if(s>hs){hs=s;hi=i}}
+  const cab=A[hi].map((c,i)=>String(c).trim()||'Coluna '+(i+1));
+  const rows=A.slice(hi+1).filter(r=>!/^\s*(total|soma|subtotal)/i.test(String(r.find(c=>String(c).trim())||'')));
+  return{cab,rows,mapa:impAutoMapa(cab)}}
+carregarScript.ok=carregarScript.ok||{};
+function carregarScript(src){return new Promise((ok,ko)=>{if(carregarScript.ok[src])return ok();const s=document.createElement('script');s.src=src;s.onload=()=>{carregarScript.ok[src]=1;ok()};s.onerror=()=>ko(new Error('script'));document.head.appendChild(s)})}
+function contasImportar(tipo){const P=tipo==='saida';
+  const st={cab:[],rows:[],mapa:{},cat:P?'outras_desp':'venda_pecas',forma:'Boleto',pagas:true,situacao:true};
+  const catOpts=catsAtivas().filter(c=>c.tipo===tipo).map(c=>`<option value="${c.id}" ${c.id===st.cat?'selected':''}>${esc(c.nome)}</option>`).join('');
+  openModal(`<h2>Importar contas ${P?'a pagar':'a receber'}</h2>
+   <p class="hint" style="margin-top:-6px">Exporte a lista de contas ${P?'a pagar':'a receber'} do LocControl em Excel (.xls/.xlsx) ou CSV e escolha o arquivo. O sistema reconhece as colunas; confira e ajuste antes de importar. Contas que já existem (mesmo vencimento, valor, documento e ${P?'fornecedor':'cliente'}) são puladas.</p>
+   <div class="form"><div class="f w6"><label for="imp-arq">Arquivo</label><input id="imp-arq" type="file" accept=".xls,.xlsx,.csv,.txt,.html,.htm,.ods"></div></div>
+   <div id="imp-cfg" hidden>
+    <h3 style="margin:14px 0 6px;font-size:15px">Colunas do arquivo</h3>
+    <div class="form" id="imp-mapa"></div>
+    <div class="form" style="margin-top:8px">
+     <div class="f w2"><label for="imp-cat">Categoria quando não vier no arquivo</label><select id="imp-cat">${catOpts}</select></div>
+     <div class="f w2"><label for="imp-forma">Forma quando não vier no arquivo</label><select id="imp-forma">${FORMAS.map(x=>`<option ${x===st.forma?'selected':''}>${x}</option>`).join('')}</select></div>
+     <div class="f w2"><label class="check"><input type="checkbox" id="imp-pagas" checked> <span>Trazer também as já ${P?'pagas':'recebidas'} (entram como baixadas)</span></label></div>
+    </div>
+    <div id="imp-prev"></div>
+   </div>
+   <div class="mfoot"><button type="button" class="btn" data-close>Cancelar</button><button type="submit" class="btn pri" id="imp-ok" disabled>Importar</button></div>`,
+  async()=>{const L=impLinhas(st,tipo).filter(x=>!x.erro);if(!L.length){toast('Nada para importar.');return false}
+    const btn=$('#imp-ok');let n=0;
+    const ok=await guard((async()=>{for(const x of L){await S.db.collection('lancamentos').doc().set(x.l);n++;if(btn)btn.textContent=`Importando ${n}/${L.length}…`}})(),`${L.length} conta(s) importada(s)`);
+    if(!ok&&n)toast(`${n} de ${L.length} importadas antes do erro. Importe de novo: as já gravadas serão puladas.`);
+    return ok},
+  f=>{f.classList.add('wide');
+    const prev=()=>{st.situacao=st.mapa.situacao!=null&&st.mapa.situacao!==''||st.mapa.dataPagamento!=null&&st.mapa.dataPagamento!=='';
+      $('#imp-prev').innerHTML=impTabela(st,tipo);$('#imp-ok').disabled=!impLinhas(st,tipo).some(x=>!x.erro)};
+    const mapaUI=()=>{$('#imp-mapa').innerHTML=IMP_CAMPOS.map(([k,n,req])=>`<div class="f"><label>${n}${req?' *':''}</label><select data-imp="${k}"><option value="">— não usar —</option>${st.cab.map((c,i)=>`<option value="${i}" ${st.mapa[k]===i?'selected':''}>${esc(c)}</option>`).join('')}</select></div>`).join('');
+      $('#imp-mapa').querySelectorAll('[data-imp]').forEach(s=>s.onchange=()=>{st.mapa[s.dataset.imp]=s.value===''?'':+s.value;prev()})};
+    $('#imp-cat').onchange=e=>{st.cat=e.target.value;prev()};$('#imp-forma').onchange=e=>{st.forma=e.target.value;prev()};$('#imp-pagas').onchange=e=>{st.pagas=e.target.checked;prev()};
+    $('#imp-arq').onchange=async e=>{const file=e.target.files[0];if(!file)return;
+      try{Object.assign(st,await impLer(file));$('#imp-cfg').hidden=false;mapaUI();prev()}
+      catch(err){console.error(err);$('#imp-cfg').hidden=true;toast(err.message==='script'?'Sem internet para ler planilhas. Tente de novo.':'Não consegui ler esse arquivo. Exporte em Excel (.xlsx) ou CSV.')}};
+  })}
 document.addEventListener('change',e=>{const c=e.target;if(!c.dataset||!c.dataset.ct)return;const T=c.dataset.t,f=UI.contas[T];
   if(c.dataset.ct==='one'){c.checked?f.sel.add(c.dataset.id):f.sel.delete(c.dataset.id)}
   else{const ab=contasFiltradas(T).filter(l=>!l.pago);if(c.checked)ab.forEach(l=>f.sel.add(l.id));else f.sel.clear()}
