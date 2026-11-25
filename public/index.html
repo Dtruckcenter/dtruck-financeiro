@@ -123,6 +123,7 @@ td .act{display:flex;gap:4px;justify-content:flex-end}
 .modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;width:100%;max-width:620px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal h2{font-size:21px;margin-bottom:14px}
 .modal.wide{max-width:1000px}
+.cp-opts{display:flex;flex-direction:column;gap:8px}.cp-op{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}.cp-op.on{border-color:var(--accent);background:var(--accent-soft)}.cp-op input[type=radio]{margin-top:3px}.cp-op small{color:var(--muted)}.cp-op span{flex:1;min-width:0}
 .form{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
 .f{display:flex;flex-direction:column;gap:4px;grid-column:span 3;min-width:0}
 .f.w6{grid-column:span 6}.f.w2{grid-column:span 2}.f.w4{grid-column:span 4}
@@ -1100,7 +1101,7 @@ function vContas(tipo){
   const mes=S.lancs.filter(l=>l.tipo===tipo&&l.pago&&caixaDate(l).startsWith(thisMonth));
   const abas=`<div class="modotab"><button type="button" class="${f.modo!=='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="lista">Contas</button><button type="button" class="${f.modo==='cat'?'on':''}" data-act="ct-modo" data-t="${tipo}" data-m="cat">Categorias</button></div>`;
   const cabec=`<div class="head"><div><h1>${P?'Contas a pagar':'Contas a receber'}</h1><p class="sub">${P?'Boletos e despesas a pagar. As contas das notas dos fornecedores entram sozinhas pela Receita.':'Valores que os clientes devem à Dtruck, por vencimento.'}</p></div>
-    <div class="tools">${can(P?'pagar':'receber','editar')?`<button class="btn" data-act="ct-import" data-t="${tipo}">Importar do LocControl</button>`:''}<button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>${abas}`;
+    <div class="tools">${P&&can('pagar','editar')?`<button class="btn" data-act="ct-comp">Ler comprovante</button>`:''}${can(P?'pagar':'receber','editar')?`<button class="btn" data-act="ct-import" data-t="${tipo}">Importar do LocControl</button>`:''}<button class="btn pri" data-act="new-conta" data-tipo="${tipo}">+ ${P?'Nova conta a pagar':'Nova conta a receber'}</button></div></div>${abas}`;
   if(f.modo==='cat')return cabec+catResumo(tipo);
   afterHooks.push(()=>{const upd=()=>{$('#ct-tab').innerHTML=contasTabela(tipo)};
     $('#ct-per').onchange=e=>{f.per=e.target.value;upd()};$('#ct-cat').onchange=e=>{f.cat=e.target.value;f.sel.clear();upd()};
@@ -1121,6 +1122,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
     case 'ct-st':f.st=b.dataset.st;f.sel.clear();if(['vencidas','hoje','7d','30d'].includes(f.st))f.per='';render();break;
     case 'ct-per-clear':f.per='';render();break;
     case 'ct-import':contasImportar(T);break;
+    case 'ct-comp':compImportar();break;
     case 'ct-del':{const L=S.lancs.filter(l=>f.sel.has(l.id)&&!l.pago);if(!L.length)return;const est=L.some(stockEffect);
       confirmBox('Excluir contas',`Excluir ${L.length} conta(s) selecionada(s), total <b>${fmt(sum(L,l=>+l.valor))}</b>?${est?' O estoque dos produtos ligados será revertido.':''} Esta ação não pode ser desfeita.`,'Excluir',async()=>{
         const ch={};L.forEach(l=>{const a=stockEffect(l);if(a)ch[a.id]=(ch[a.id]||0)-a.d});
@@ -1185,7 +1187,7 @@ function impLinhas(st,tipo){const m=st.mapa,cel=(r,k)=>m[k]!=null&&m[k]!==''?r[m
     if(!erro&&pago&&!st.pagas)erro='já paga (ignorada)';
     return{i,l,erro}})}
 function impTabela(st,tipo){const L=impLinhas(st,tipo),ok=L.filter(x=>!x.erro);
-  const cab=`<p style="margin:10px 0 6px"><b>${ok.length}</b> conta(s) para importar · <b>${fmt(sum(ok,x=>x.l.valor))}</b>${L.length-ok.length?` · <span style="color:var(--mute)">${L.length-ok.length} ignorada(s)</span>`:''}</p>`;
+  const cab=`<p style="margin:10px 0 6px"><b>${ok.length}</b> conta(s) para importar · <b>${fmt(sum(ok,x=>x.l.valor))}</b>${L.length-ok.length?` · <span style="color:var(--muted)">${L.length-ok.length} ignorada(s)</span>`:''}</p>`;
   const linha=x=>`<tr${x.erro?' style="opacity:.5"':''}><td>${fmtD(x.l.data)||'—'}</td><td>${esc(x.l.descricao)}${x.l.tipo==='saida'&&x.l.fornecedor&&x.l.fornecedor!==x.l.descricao?`<br><small>${esc(x.l.fornecedor)}</small>`:''}${x.l.clienteId?`<br><small>Cliente: ${esc(cliNome(x.l.clienteId))}</small>`:''}</td><td>${esc(x.l.documento)}</td><td>${esc(CAT[x.l.categoria]?.nome||'')}</td><td>${x.l.pago?(x.l.tipo==='saida'?'Paga':'Recebida')+' '+fmtD(x.l.dataPagamento):'Em aberto'}</td><td class="num">${fmt(x.l.valor)}</td><td>${x.erro?`<small>${esc(x.erro)}</small>`:'✓'}</td></tr>`;
   return cab+`<div class="tw" style="max-height:300px;overflow:auto"><table><thead><tr><th>Vencimento</th><th>Descrição</th><th>Documento</th><th>Categoria</th><th>Situação</th><th class="num">Valor</th><th></th></tr></thead><tbody>${L.slice(0,300).map(linha).join('')}</tbody></table></div>${L.length>300?`<p class="hint">Mostrando 300 de ${L.length} linhas.</p>`:''}`}
 async function impLer(file){
@@ -1242,6 +1244,125 @@ function contasImportar(tipo){const P=tipo==='saida';
       try{Object.assign(st,await impLer(file));$('#imp-cfg').hidden=false;mapaUI();prev()}
       catch(err){console.error(err);$('#imp-cfg').hidden=true;toast(err.message==='script'?'Sem internet para ler planilhas. Tente de novo.':'Não consegui ler esse arquivo. Exporte em Excel (.xlsx) ou CSV.')}};
   })}
+// ---------- Leitor de comprovantes (contas a pagar) ----------
+// Lê PDF (texto) ou foto/print (OCR no navegador), acha valor, data, favorecido e dá baixa na conta certa ou cria a saída.
+const COMP_LIB={pdf:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',pdfw:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',ocr:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'};
+const MESES_N={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+async function compHash(buf){const h=await crypto.subtle.digest('SHA-256',buf);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,40)}
+async function compOCR(fonte,status){await carregarScript(COMP_LIB.ocr);status('Lendo a imagem (na primeira vez pode levar alguns segundos)…');
+  const w=await Tesseract.createWorker('por',1,{logger:m=>{if(m.status==='recognizing text')status(`Lendo a imagem… ${Math.round(m.progress*100)}%`)}});
+  try{const r=await w.recognize(fonte);return r.data.text||''}finally{await w.terminate()}}
+async function compTexto(file,status){const buf=await file.arrayBuffer();const hash=await compHash(buf);
+  if(/pdf$/i.test(file.type)||/\.pdf$/i.test(file.name)){await carregarScript(COMP_LIB.pdf);pdfjsLib.GlobalWorkerOptions.workerSrc=COMP_LIB.pdfw;status('Lendo o PDF…');
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;let txt='';
+    for(let i=1;i<=Math.min(pdf.numPages,3);i++){const pg=await pdf.getPage(i),tc=await pg.getTextContent();let y=null;
+      for(const it of tc.items){const yy=Math.round(it.transform[5]);if(y!==null&&Math.abs(yy-y)>3)txt+='\n';else if(y!==null)txt+=' ';txt+=it.str;y=yy}txt+='\n'}
+    if(txt.replace(/\s/g,'').length<30){ // PDF escaneado: vira imagem e passa no OCR
+      const pg=await pdf.getPage(1),vp=pg.getViewport({scale:2.2}),cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;txt=await compOCR(cv,status)}
+    return{txt,hash}}
+  if(/^image\//.test(file.type)||/\.(png|jpe?g|webp|bmp)$/i.test(file.name))return{txt:await compOCR(file,status),hash};
+  throw new Error('tipo')}
+function compData(s){let m=s.match(/(\d{2})\s*[\/.\-]\s*(\d{2})\s*[\/.\-]\s*(\d{4})/);if(m)return `${m[3]}-${m[2]}-${m[1]}`;
+  m=semAc(s).match(/(\d{1,2})\s*(?:de\s*)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\.?\s*(?:de\s*)?(\d{4})/);
+  if(m)return `${m[3]}-${String(MESES_N[m[2]]).padStart(2,'0')}-${m[1].padStart(2,'0')}`;return''}
+function compLer(txt){
+  const L=txt.split(/\r?\n/).map(l=>l.replace(/\s+/g,' ').trim()).filter(Boolean),N=L.map(semAc),tudo=N.join('\n');
+  const num=s=>{const m=String(s).match(/(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})(?!\d)/);return m?r2(parseFloat(m[1].replace(/\./g,'')+'.'+m[2])):0};
+  // valor: rótulos mais confiáveis primeiro
+  let valor=0;const rotV=[/valor (total )?(pago|debitado|do pagamento|da transferencia|do pix|transferido|cobrado)/,/^valor( total)?\b/,/valor do documento|valor nominal|valor a pagar|^total\b/];
+  for(const r of rotV){if(valor)break;for(let i=0;i<N.length&&!valor;i++)if(r.test(N[i])){valor=num(L[i].split(/:|R\$/).slice(1).join(' '))||num(L[i])||(L[i+1]?num(L[i+1]):0)}}
+  if(!valor){const vs=[...txt.matchAll(/R\$\s*([\d.]+,\d{2})/g)].map(m=>num(m[1])).filter(v=>v>0);if(vs.length){const c={};vs.forEach(v=>c[v]=(c[v]||0)+1);valor=+Object.keys(c).sort((a,b)=>c[b]-c[a]||b-a)[0]}}
+  // data do pagamento
+  let data='';const rotD=[/(data|dt)\.? ?(do |da |de )?(pagamento|transferencia|transacao|debito|operacao|efetivacao|realizacao)|pago em|realizad[oa] em|efetuad[oa] em|debitado em/,/data\/hora|^data\b|^dt\b/];
+  for(const r of rotD)for(let i=0;i<N.length&&!data;i++)if(r.test(N[i])&&!/venc/.test(N[i]))data=compData(N[i])||(L[i+1]?compData(L[i+1]):'');
+  if(!data){const ds=[...tudo.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)].map(m=>`${m[3]}-${m[2]}-${m[1]}`).filter(d=>d<=addDias(today,1)).sort();data=ds.pop()||compData(tudo)}
+  // favorecido / beneficiário
+  let fav='';const rotF=/^(nome do )?(favorecido|beneficiario( final)?|recebedor|destinatario|cedente|para|quem recebeu|nome do recebedor|empresa|razao social|credor)\b/;
+  for(let i=0;i<N.length&&!fav;i++){if(!rotF.test(N[i]))continue;let v=L[i].slice(N[i].match(rotF)[0].length).replace(/^\s*[:\-]?\s*/,'').trim();
+    if(!v||v.length<3||/^(cpf|cnpj|instituicao|banco|agencia|chave)/i.test(semAc(v)))v=(L[i+1]&&!/^(cpf|cnpj)/i.test(N[i+1]))?L[i+1]:'';
+    if(/^nome\b/i.test(semAc(v)))v=v.replace(/^nome\s*:?\s*/i,'');fav=v.replace(/\s*(cpf|cnpj)[:\s].*$/i,'').trim()}
+  // CNPJ/CPF do favorecido (ignora o da Dtruck, que é o pagador)
+  const meu=digits(EMPRESA.cnpj);const docs=[...txt.matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{3}\.\d{3}\.\d{3}-\d{2}|(?:cnpj|cpf)\s*:?\s*(\d{14}|\d{11})\b/gi)].map(m=>digits(m[1]||m[0])).filter(d=>d!==meu);
+  const doc=docs[0]||'';
+  // boleto: linha digitável (47 dígitos) ou de convênio (48)
+  let linha='';for(const l of L){const d=digits(l);if((d.length===47||d.length===48)&&/^[\d.\s-]+$/.test(l)){linha=d;break}}
+  if(!linha){const m=digits(txt.replace(/\n/g,' ')).match(/\d{47,48}/);if(m&&/(boleto|codigo de barras|linha digitavel|titulo)/.test(tudo))linha=m[0].slice(0,47)}
+  if(!valor&&linha.length===47){const v=+linha.slice(-10)/100;if(v>0)valor=r2(v)}
+  const pix=(txt.match(/\bE\d{8}\d{12}[A-Za-z0-9]{11}\b/)||[])[0]||'';
+  const forma=/\bpix\b/.test(tudo)?'PIX':(linha||/boleto|codigo de barras|linha digitavel|pagamento de titulo/.test(tudo))?'Boleto':/\bted\b|\bdoc\b|transferencia/.test(tudo)?'Transferência':/debito automatico/.test(tudo)?'Boleto':'';
+  return{valor,data,fav,doc,linha,pix,forma}}
+function compPalavras(s){return new Set(impPalavras(s).filter(w=>!['ltda','eireli','me','epp','s/a','comercio','servicos','industria','distribuidora'].includes(w)))}
+function compCandidatas(r){const fw=compPalavras(r.fav);
+  return S.lancs.filter(l=>l.tipo==='saida'&&!l.pago).map(l=>{let s=0;const dv=Math.abs((+l.valor)-r.valor);
+    if(r.valor&&dv<0.01)s+=60;else if(r.valor&&dv<=Math.max(1,r.valor*0.02))s+=25;
+    const lw=compPalavras((l.fornecedor||'')+' '+l.descricao);let com=0;fw.forEach(w=>{if(lw.has(w))com++});s+=Math.min(30,com*12);
+    if(r.doc&&(l.fornecedorDoc===r.doc||String(l.obs||'').includes(r.doc)))s+=30;
+    if(r.linha&&l.linhaDigitavel&&digits(l.linhaDigitavel)===r.linha)s+=100;
+    if(r.data&&l.data){const d=Math.abs((new Date(l.data)-new Date(r.data))/864e5);s+=d<=3?10:d<=15?5:0}
+    return{l,s}}).filter(x=>x.s>=35).sort((a,b)=>b.s-a.s).slice(0,6)}
+function compImportar(){
+  if(!window.crypto||!crypto.subtle){toast('Abra o sistema pelo endereço https para ler comprovantes.');return}
+  const fila=[];let atual=null;
+  const tela=()=>{const r=atual;if(!r)return`<p class="hint">Escolha um ou mais comprovantes (PDF, foto ou print da tela).</p>`;
+    if(r.lendo)return`<p id="cp-st" style="margin:18px 0">${esc(r.status||'Lendo…')}</p>`;
+    if(r.erro)return`<p style="color:var(--neg);margin:14px 0">${esc(r.erro)}</p>`;
+    const C=compCandidatas(r.dados),dup=S.lancs.find(l=>l.compHash===r.hash||(r.dados.pix&&l.compPix===r.dados.pix))||(()=>{const fw=compPalavras(r.dados.fav);
+      return S.lancs.find(l=>l.tipo==='saida'&&l.pago&&Math.abs(+l.valor-r.dados.valor)<0.01&&r.dados.data&&Math.abs((new Date(l.dataPagamento||l.data)-new Date(r.dados.data))/864e5)<=3&&[...compPalavras((l.fornecedor||'')+' '+l.descricao)].some(w=>fw.has(w)))})();
+    if(r.escolha==null)r.escolha=C.length&&C[0].s>=70?C[0].l.id:'nova';
+    if(r.cat==null){const fw=compPalavras(r.dados.fav);let best=null,bs=0;for(const l of S.lancs){if(l.tipo!=='saida'||!l.categoria)continue;const lw=compPalavras(l.fornecedor||l.descricao);let n=0;fw.forEach(w=>{if(lw.has(w))n++});if(n>bs||(n===bs&&n&&(l.dataPagamento||l.data)>(best.dataPagamento||best.data))){bs=n;best=l}}r.cat=bs>=Math.min(2,fw.size)&&best?best.categoria:'outras_desp'}
+    const cats=catsAtivas().filter(c=>c.tipo==='saida').map(c=>`<option value="${c.id}" ${c.id===(r.cat||'outras_desp')?'selected':''}>${esc(c.nome)}</option>`).join('');
+    return `${fila.length?`<p class="hint">Comprovante ${r.n} de ${r.n+fila.length}</p>`:''}
+     ${dup?`<div class="banner" style="margin:6px 0 10px">⚠ Este comprovante parece já ter sido lançado: <b>${esc(dup.descricao)}</b> · ${fmt(dup.valor)}. Confira antes de continuar.</div>`:''}
+     <p style="margin:4px 0 10px"><b>${esc(r.nome)}</b>${r.dados.pix?` · <small>Pix ${esc(r.dados.pix)}</small>`:''}${r.dados.linha?` · <small>Boleto ${esc(r.dados.linha.slice(0,12))}…</small>`:''}</p>
+     <div class="form">
+      <div class="f w2"><label for="cp-v">Valor pago *</label><input id="cp-v" data-cp="valor" type="number" step="0.01" min="0" value="${r.dados.valor||''}" inputmode="decimal"></div>
+      <div class="f w2"><label for="cp-d">Data do pagamento *</label><input id="cp-d" data-cp="data" type="date" value="${r.dados.data||today}"></div>
+      <div class="f w2"><label for="cp-f">Forma</label><select id="cp-f" data-cp="forma">${FORMAS.map(x=>`<option ${x===(r.dados.forma||'Boleto')?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="f"><label for="cp-fav">Favorecido</label><input id="cp-fav" data-cp="fav" value="${esc(r.dados.fav)}"></div>
+      <div class="f"><label for="cp-doc">CNPJ/CPF do favorecido</label><input id="cp-doc" data-cp="doc" value="${esc(r.dados.doc?fmtDoc(r.dados.doc):'')}"></div>
+     </div>
+     <h3 style="margin:14px 0 6px;font-size:15px">O que fazer com este pagamento</h3>
+     <div class="cp-opts">${C.map(x=>`<label class="cp-op ${r.escolha===x.l.id?'on':''}"><input type="radio" name="cp-esc" value="${x.l.id}" ${r.escolha===x.l.id?'checked':''}><span><b>Dar baixa:</b> ${esc(x.l.fornecedor||'')}${x.l.fornecedor?' · ':''}${esc(x.l.descricao)}<br><small>Vence ${fmtD(x.l.data)} · ${fmt(x.l.valor)}${Math.abs(x.l.valor-r.dados.valor)>=0.01&&r.dados.valor?` <b style="color:var(--warn)">(valor diferente: ${fmt(r.dados.valor)})</b>`:''}${x.s>=70?' · <b style="color:var(--pos)">mais provável</b>':''}</small></span></label>`).join('')}
+      <label class="cp-op ${r.escolha==='outra'?'on':''}"><input type="radio" name="cp-esc" value="outra" ${r.escolha==='outra'?'checked':''}><span><b>Dar baixa em outra conta em aberto:</b>
+        <select id="cp-outra" style="margin-top:6px;width:100%"><option value="">Escolha…</option>${S.lancs.filter(l=>l.tipo==='saida'&&!l.pago).sort((a,b)=>a.data.localeCompare(b.data)).map(l=>`<option value="${l.id}" ${r.outra===l.id?'selected':''}>${fmtD(l.data)} · ${esc((l.fornecedor?l.fornecedor+' · ':'')+l.descricao).slice(0,80)} · ${fmt(l.valor)}</option>`).join('')}</select></span></label>
+      <label class="cp-op ${r.escolha==='nova'?'on':''}"><input type="radio" name="cp-esc" value="nova" ${r.escolha==='nova'?'checked':''}><span><b>Registrar como nova saída (já paga)</b>
+        <span class="cp-nova" style="display:${r.escolha==='nova'?'grid':'none'};grid-template-columns:1fr 1fr;gap:8px;margin-top:8px"><input id="cp-desc" placeholder="Descrição" value="${esc(r.desc??(r.dados.fav?'Pagamento '+r.dados.fav:'Pagamento'))}"><select id="cp-cat">${cats}</select></span></span></label>
+     </div>`};
+  const pintar=()=>{const c=$('#cp-corpo');if(!c)return;c.innerHTML=tela();const b=$('#cp-ok');if(b){b.disabled=!atual||atual.lendo||!!atual.erro;b.textContent=atual&&atual.erro?'Confirmar':fila.length?'Confirmar e ir para o próximo':'Confirmar'}
+    const p=$('#cp-pular');if(p)p.hidden=!(atual&&(fila.length||atual.erro));
+    c.querySelectorAll('[data-cp]').forEach(i=>i.oninput=()=>{const k=i.dataset.cp;atual.dados[k]=k==='valor'?r2(+i.value):k==='doc'?digits(i.value):i.value;if(k==='valor'||k==='fav'){const s=c.querySelector('.cp-opts');const tmp=document.createElement('div');tmp.innerHTML=tela();s.replaceWith(tmp.querySelector('.cp-opts'));ligar()}});
+    ligar()};
+  const ligar=()=>{const c=$('#cp-corpo');c.querySelectorAll('[name=cp-esc]').forEach(r=>r.onchange=()=>{atual.escolha=r.value;c.querySelectorAll('.cp-op').forEach(o=>o.classList.toggle('on',o.contains(r)));const n=c.querySelector('.cp-nova');if(n)n.style.display=r.value==='nova'?'grid':'none'});
+    const o=$('#cp-outra');if(o)o.onchange=()=>{atual.outra=o.value;atual.escolha='outra';const rr=c.querySelector('[name=cp-esc][value=outra]');rr.checked=true;rr.onchange()};
+    const d=$('#cp-desc');if(d)d.oninput=()=>atual.desc=d.value;const ct=$('#cp-cat');if(ct)ct.onchange=()=>atual.cat=ct.value};
+  let n=0;
+  const proximo=async()=>{atual=fila.shift()||null;if(!atual){pintar();return}
+    atual.lendo=true;atual.status='Lendo…';pintar();
+    try{const {txt,hash}=await compTexto(atual.file,s=>{atual.status=s;const e=$('#cp-st');if(e)e.textContent=s});atual.hash=hash;atual.txt=txt;atual.dados=compLer(txt);
+      if(!atual.dados.valor&&!atual.dados.data)atual.erro='Não encontrei valor nem data neste arquivo. Confira se é um comprovante de pagamento legível.'}
+    catch(e){console.error(e);atual.erro=e.message==='tipo'?'Formato não aceito. Use PDF, JPG ou PNG.':e.message==='script'?'Sem internet para carregar o leitor. Tente de novo.':'Não consegui ler este arquivo.'}
+    atual.lendo=false;pintar()};
+  openModal(`<h2>Ler comprovante de pagamento</h2>
+   <p class="hint" style="margin-top:-6px">Envie o comprovante do banco (PDF, foto ou print). O sistema lê valor, data e favorecido, procura a conta a pagar correspondente e dá baixa nela — ou registra uma nova saída já paga.</p>
+   <div class="form"><div class="f w6"><label for="cp-arq">Comprovantes</label><input id="cp-arq" type="file" multiple accept="application/pdf,.pdf,image/*"></div></div>
+   <div id="cp-corpo"></div>
+   <div class="mfoot"><button type="button" class="btn" data-close>Fechar</button><button type="button" class="btn" id="cp-pular" hidden>Pular</button><button type="submit" class="btn pri" id="cp-ok" disabled>Confirmar</button></div>`,
+  async()=>{const r=atual;if(!r||r.lendo)return false;if(r.erro){await proximo();return fila.length||atual?false:true}
+    const d=r.dados,valor=r2(+d.valor);if(!(valor>0)||!d.data){toast('Informe o valor e a data do pagamento.');return false}
+    const extra={compHash:r.hash,...(d.pix?{compPix:d.pix}:{})},nota=`Comprovante ${r.nome}${d.pix?' · Pix '+d.pix:''}${d.linha?' · Boleto '+d.linha:''}`;
+    let ok;
+    if(r.escolha==='nova'){const ref=S.db.collection('lancamentos').doc();
+      ok=await guard(ref.set({tipo:'saida',descricao:(r.desc??(d.fav?'Pagamento '+d.fav:'Pagamento')).trim()||'Pagamento',data:d.data,categoria:r.cat||'outras_desp',valor,forma:d.forma||'Boleto',documento:d.linha?'Boleto':'',obs:nota,
+        pago:true,dataPagamento:d.data,clienteId:'',fornecedor:d.fav||'',fornecedorDoc:d.doc||'',pecaId:'',qtd:0,criadoEm:Date.now(),origem:'comprovante',...extra}),'Saída registrada')}
+    else{const id=r.escolha==='outra'?r.outra:r.escolha;const l=S.lancs.find(x=>x.id===id);if(!l){toast('Escolha a conta que foi paga.');return false}
+      const upd={pago:true,dataPagamento:d.data,forma:d.forma||l.forma,obs:[l.obs,nota].filter(Boolean).join('\n'),...extra};
+      if(Math.abs(+l.valor-valor)>=0.01){upd.obs+=`\nValor original ${fmt(l.valor)}; pago ${fmt(valor)} (juros/desconto).`;upd.valor=valor}
+      ok=await guard(S.db.doc('lancamentos/'+id).update(upd),'Conta baixada')}
+    if(!ok)return false;if(fila.length){await proximo();return false}return true},
+  f=>{f.classList.add('wide');pintar();
+    $('#cp-pular').onclick=()=>proximo();
+    $('#cp-arq').onchange=e=>{const fs=[...e.target.files];if(!fs.length)return;fila.length=0;fs.forEach(file=>fila.push({file,nome:file.name,n:++n}));n=0;fila.forEach((x,i)=>x.n=i+1);proximo()}})}
 document.addEventListener('change',e=>{const c=e.target;if(!c.dataset||!c.dataset.ct)return;const T=c.dataset.t,f=UI.contas[T];
   if(c.dataset.ct==='one'){c.checked?f.sel.add(c.dataset.id):f.sel.delete(c.dataset.id)}
   else{const ab=contasFiltradas(T).filter(l=>!l.pago);if(c.checked)ab.forEach(l=>f.sel.add(l.id));else f.sel.clear()}
